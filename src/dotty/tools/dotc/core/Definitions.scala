@@ -428,6 +428,7 @@ class Definitions {
   lazy val StaticAnnotationType        = ctx.requiredClassRef("scala.annotation.StaticAnnotation")
   def StaticAnnotationClass(implicit ctx: Context) = StaticAnnotationType.symbol.asClass
 
+
   // Annotation classes
   lazy val AliasAnnotType = ctx.requiredClassRef("dotty.annotation.internal.Alias")
   def AliasAnnot(implicit ctx: Context) = AliasAnnotType.symbol.asClass
@@ -485,6 +486,8 @@ class Definitions {
   def GetterMetaAnnot(implicit ctx: Context) = GetterMetaAnnotType.symbol.asClass
   lazy val SetterMetaAnnotType = ctx.requiredClassRef("scala.annotation.meta.setter")
   def SetterMetaAnnot(implicit ctx: Context) = SetterMetaAnnotType.symbol.asClass
+
+  lazy val IdempotentAnnotationClass = ctx.requiredClass("scala.annotation.Idempotent")
 
   // convenient one-parameter method types
   def methOfAny(tp: Type) = MethodType(List(AnyType), tp)
