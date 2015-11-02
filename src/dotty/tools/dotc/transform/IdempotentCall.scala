@@ -26,11 +26,31 @@ class IdempotentCall extends MiniPhaseTransform {
     result
   }
 
-  /** @return Return <code>true</code> if <code>sym</code> references an
-    *          idempotent operation, <code>false</code> otherwise
-    */
-  def isIdempotent(sym: Symbol)(implicit ctx: Context): Boolean =
-    ((sym is Flags.Method) && (sym hasAnnotation defn.IdempotentAnnotationClass)) || (sym is Flags.Lazy)
+  def isIdempotentRef(tree: Tree)(implicit ctx: Context): Boolean =
+    if (!tree.tpe.widen.isParameterless) true
+    else if (tree.symbol hasAnnotation defn.IdempotentAnnotationClass) true
+    else if (!tree.symbol.isStable) false
+    else if (tree.symbol is Flags.Lazy) true
+    else true
+
+  def isIdempotentExpr(tree: Tree)(implicit ctx: Context): Boolean = tree match {
+    case EmptyTree | This(_) | Super(_, _) | Literal(_) =>
+      true
+    case Ident(_) =>
+      isIdempotentRef(tree)
+    case Select(qual, _) =>
+      isIdempotentExpr(qual) && isIdempotentRef(tree)
+    case TypeApply(fn, _) =>
+      isIdempotentExpr(fn)
+    case Apply(fn, args) =>
+      isIdempotentExpr(fn) && (args forall isIdempotentExpr)
+    case Typed(expr, _) =>
+      isIdempotentExpr(expr)
+    case Block(stats, expr) =>
+      isIdempotentExpr(expr) && (stats forall isIdempotentExpr)
+    case _ =>
+      false
+  }
 
   /** Idempotent call representation
     *
@@ -54,24 +74,37 @@ class IdempotentCall extends MiniPhaseTransform {
 
       // qual.fun
       case Select(qual, _) if isIdempotent(tree.symbol) =>
-        if (qual.symbol == NoSymbol) None
-        else Some(Idempotent(tree.symbol, qual.symbol))
+        if (isStableRef(qual.symbol))
+          Some(Idempotent(tree.symbol, qual.symbol))
+        else None
 
       // fun(args)
       case Apply(id: Ident, args) if isIdempotent(id.symbol) =>
         val argsSyms = args map (_.symbol)
-        if (argsSyms contains NoSymbol) None
-        else Some(Idempotent(id.symbol, args = argsSyms))
+        if (argsSyms forall isStableRef)
+          Some(Idempotent(id.symbol, args = argsSyms))
+        else None
 
       // qual.fun(args)
       case Apply(fun@Select(qual, _), args) if isIdempotent(fun.symbol) =>
         val argsSyms = args map (_.symbol)
-        if ((qual.symbol :: argsSyms) contains NoSymbol) None
-        else Some(Idempotent(fun.symbol, qual.symbol, argsSyms))
+        if ((qual.symbol :: argsSyms) forall isStableRef)
+          Some(Idempotent(fun.symbol, qual.symbol, argsSyms))
+        else None
 
       case _ =>
         None
     }
+
+    def isStableRef(sym: Symbol)(implicit ctx: Context): Boolean =
+      if (sym.isClass) true
+      else (sym != NoSymbol) && (sym.owner == ctx.owner) && !(sym is Flags.Mutable)
+
+    /** @return Return <code>true</code> if <code>sym</code> references an
+      *          idempotent operation, <code>false</code> otherwise
+      */
+    def isIdempotent(sym: Symbol)(implicit ctx: Context): Boolean =
+      (sym hasAnnotation defn.IdempotentAnnotationClass) || (sym is Flags.Lazy)
   }
 
 
@@ -85,28 +118,24 @@ class IdempotentCall extends MiniPhaseTransform {
     private var treeBuffer = List.empty[ListBuffer[Tree]]
 
     /** Whether or not idempotent calls can be extracted in the current context */
-    private var ctx: OptimizationContext = notOptimizable
+    private var octx: OptimizationContext = notOptimizable
 
-    override def transform(tree: Tree)(implicit c: Context): Tree = {
-      val trans = transformIdem(tree)
-      // extract idempotent call in subtrees
-      trans match {
-        case Select(qual, name) if ctx.optimizable =>
-          transformIdem(Select(transform(qual), name))
+    override def transform(tree: Tree)(implicit ctx: Context): Tree = {
+      // Recursively call on subtrees
+      val transformed = tree match {
+        case Apply(id: Ident, args) if octx.optimizable =>
+          val targs = transformArgs(args)
+          cpy.Apply(tree)(id, targs)
 
-        case Apply(id: Ident, args) if ctx.optimizable =>
-          val (pures, rest) = transformArgs(args)
-          transformIdem(Apply(id, pures ::: rest))
-
-        case Apply(Select(qual, name), args) if ctx.optimizable =>
-          val tqual = transform(qual)
-          val (pures, rest) = transformArgs(args)
-          transformIdem(Apply(Select(tqual, name), pures ::: rest))
+        case Apply(sel@Select(qual, name), args) if octx.optimizable =>
+          val tqual :: targs = transformArgs(qual :: args)
+          val cpSel = cpy.Select(sel)(tqual, name)
+          cpy.Apply(tree)(cpSel, targs)
 
         case Block(stats, expr) =>
           val savedSubsts = substs
-          val savedCtx = ctx
-          ctx = optimizable
+          val savedCtx = octx
+          octx = optimizable
 
           val tStats = transformStats(stats)
 
@@ -116,15 +145,36 @@ class IdempotentCall extends MiniPhaseTransform {
           treeBuffer = treeBuffer.tail
 
           substs = savedSubsts
-          ctx = savedCtx
-          transformIdem(Block(tStats ::: vds, tExpr))
+          octx = savedCtx
+          cpy.Block(tree)(tStats ::: vds, tExpr)
+
+        case dd: DefDef =>
+          super.transform(tree)(ctx withOwner dd.symbol)
 
         case _ =>
-          super.transform(trans)
+          super.transform(tree)
+      }
+
+      // Apply a substitution if defined,
+      // try to extract an idempotent call otherwise
+      (Idempotent(transformed) fold transformed) { idem =>
+        substs get idem match {
+          // New idempotent call in optimizable context
+          case None if octx.optimizable =>
+            val holderName = ctx.freshName().toTermName
+            val valDef = SyntheticValDef(holderName, transformed)
+            substs += idem -> valDef.symbol
+            treeBuffer.head += valDef
+            ref(valDef.symbol)
+
+          // Redundant idempotent call
+          case Some(symb) => ref(symb)
+          case _          => tree
+        }
       }
     }
 
-    override def transformStats(trees: List[Tree])(implicit c: Context): List[Tree] = {
+    override def transformStats(trees: List[Tree])(implicit ctx: Context): List[Tree] = {
       trees flatMap { stat =>
         // Prepend newly created vals to the transformed statement
         treeBuffer ::= ListBuffer.empty
@@ -136,37 +186,17 @@ class IdempotentCall extends MiniPhaseTransform {
       }
     }
 
-    /** If defined, apply a substitution on <code>tree</code>,
-      *  try to extract an idempotent call otherwise
-      */
-    def transformIdem(tree: Tree)(implicit c: Context): Tree =
-      (Idempotent(tree) fold tree) { idem =>
-        substs get idem match {
-          // New idempotent call in optimizable context
-          case None if ctx.optimizable =>
-            val holderName = c.freshName().toTermName
-            val valDef = SyntheticValDef(holderName, tree)
-            substs += idem -> valDef.symbol
-            treeBuffer.head += valDef
-            ref(valDef.symbol)
-
-          // Redundant idempotent call
-          case Some(symb) => ref(symb)
-          case _          => tree
-        }
-      }
-
     /** Try to extract idempotent calls in <code>args</code> until
-      *  we encounter an impure expression
+      *  we encounter a not idempotent expression
       */
-    def transformArgs(args: List[Tree])(implicit c: Context) = {
-      val (pures, rest) = args span isPureExpr
-      val tpures = transform(pures)
-      val saved = ctx
-      ctx = notOptimizable
+    def transformArgs(args: List[Tree])(implicit ctx: Context) = {
+      val (idems, rest) = args span isIdempotentExpr
+      val tidems = transform(idems)
+      val saved = octx
+      octx = notOptimizable
       val trest = transform(rest)
-      ctx = saved
-      (tpures, trest)
+      octx = saved
+      tidems ::: trest
     }
 
   }
