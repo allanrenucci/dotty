@@ -494,7 +494,8 @@ class Definitions {
   lazy val SetterMetaAnnotType = ctx.requiredClassRef("scala.annotation.meta.setter")
   def SetterMetaAnnot(implicit ctx: Context) = SetterMetaAnnotType.symbol.asClass
 
-  lazy val IdempotentAnnotationClass = ctx.requiredClass("scala.annotation.Idempotent")
+  lazy val IdempotentAnnotType = ctx.requiredClassRef("scala.annotation.Idempotent")
+  def IdempotentAnnot(implicit ctx: Context) = IdempotentAnnotType.symbol.asClass
 
   // convenient one-parameter method types
   def methOfAny(tp: Type) = MethodType(List(AnyType), tp)
