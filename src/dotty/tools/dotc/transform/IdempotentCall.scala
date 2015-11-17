@@ -4,8 +4,8 @@ import dotty.tools.dotc.ast.Trees._
 import dotty.tools.dotc.ast.tpd
 import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Decorators.StringDecorator
+import dotty.tools.dotc.core.Flags._
 import dotty.tools.dotc.core.Symbols._
-import dotty.tools.dotc.core._
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
 
 import scala.collection.mutable.ListBuffer
@@ -18,11 +18,11 @@ class IdempotentCall extends MiniPhaseTransform {
   override def phaseName: String = "IdempotentCall"
 
   override def transformDefDef(tree: DefDef)(implicit ctx: Context, info: TransformerInfo): Tree = {
-    println(tree.show)
+//    println(tree.show)
     val transformer = new IdempotentCallElimination(ctx.owner)
     val result = transformer.transform(tree)
-    println("-" * 50)
-    println(result.show + "\n\n")
+//    println("-" * 50)
+//    println(result.show + "\n\n")
     result
   }
 
@@ -30,7 +30,7 @@ class IdempotentCall extends MiniPhaseTransform {
     if (!tree.tpe.widen.isParameterless) true
     else if (tree.symbol hasAnnotation defn.IdempotentAnnot) true
     else if (!tree.symbol.isStable) false
-    else if (tree.symbol is Flags.Lazy) true
+    else if (tree.symbol is Lazy) true
     else true
 
   def isIdempotentExpr(tree: Tree)(implicit ctx: Context): Boolean = tree match {
@@ -65,7 +65,7 @@ class IdempotentCall extends MiniPhaseTransform {
     /** Try to extract an idempotent call from <code>tree</code>
       *
       * @return The idempotent call as an option, <code>None</code>
-      *          if no idempotent call could be extracted
+      *         if no idempotent call could be extracted
       */
     def apply(tree: Tree)(implicit ctx: Context): Option[Idempotent] = tree match {
       // fun
@@ -98,13 +98,13 @@ class IdempotentCall extends MiniPhaseTransform {
 
     def isStableRef(sym: Symbol)(implicit ctx: Context): Boolean =
       if (sym.isClass) true
-      else (sym != NoSymbol) && (sym.owner == ctx.owner) && !(sym is Flags.Mutable)
+      else (sym != NoSymbol) && (sym.owner == ctx.owner) && !(sym is Mutable)
 
     /** @return Return <code>true</code> if <code>sym</code> references an
       *         extractable idempotent operation, <code>false</code> otherwise
       */
     def isExtractable(sym: Symbol)(implicit ctx: Context): Boolean =
-      (sym hasAnnotation defn.IdempotentAnnot) || (sym is Flags.Lazy)
+      (sym hasAnnotation defn.IdempotentAnnot) || (sym is Lazy)
   }
 
 
@@ -179,7 +179,9 @@ class IdempotentCall extends MiniPhaseTransform {
           // New idempotent call in optimizable context
           case None if octx.optimizable =>
             val holderName = ctx.freshName().toTermName
-            val valDef = SyntheticValDef(holderName, transformed)
+            //val valDef = SyntheticValDef(holderName, transformed)
+            val holderSym = ctx.newSymbol(ctx.owner, holderName, Synthetic, transformed.tpe, coord = transformed.pos)
+            val valDef = ValDef(holderSym, transformed)
             substs += idem -> valDef.symbol
             treeBuffers.head += valDef
             ref(valDef.symbol)
