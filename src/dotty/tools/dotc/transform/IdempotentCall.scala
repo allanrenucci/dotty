@@ -182,7 +182,18 @@ class IdempotentCall extends MiniPhaseTransform {
           val sym = vd.symbol.asTerm
           val tpt = transform(_tpt)
           val rhs = withOwner(sym)(transform(vd.rhs))
-          cpy.ValDef(vd)(name, tpt, rhs)
+
+          treeBuffers.headOption flatMap (_.lastOption) match {
+            // Newly created val is a duplicate of the current one
+            case Some(nvd: ValDef) if nvd.symbol == rhs.symbol && sym.info =:= nvd.tpe.widen =>
+              treeBuffers.head -= nvd
+              val idem = Idempotent(nvd.rhs).get
+              substs += idem -> sym
+              ValDef(sym, nvd.rhs)
+
+            case _ =>
+              cpy.ValDef(vd)(name, tpt, rhs)
+          }
 
         case td: TypeDef => td
         case tt: TypTree => tt
