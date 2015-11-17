@@ -6,6 +6,7 @@ import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Decorators.StringDecorator
 import dotty.tools.dotc.core.Flags._
 import dotty.tools.dotc.core.Symbols._
+import dotty.tools.dotc.core.Types.Type
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
 
 import scala.collection.mutable.ListBuffer
@@ -58,7 +59,20 @@ class IdempotentCall extends MiniPhaseTransform {
     * @param qualifier optional qualifier symbol
     * @param args optional list of argument symbol
     */
-  case class Idempotent(fun: Symbol, qualifier: Symbol = NoSymbol, args: List[Symbol] = Nil)
+  case class Idempotent(fun: Symbol, qualifier: Symbol = NoSymbol, args: List[Type] = Nil)(implicit ctx: Context) {
+    override def equals(that: Any): Boolean = that match {
+      case idem @ Idempotent(thatFun, thatQualifier, thatArgs) =>
+        (this eq idem) || {
+          fun == thatFun && qualifier == thatQualifier &&
+            args.size == thatArgs.size && (args zip thatArgs).forall(t => t._1 =:= t._2)
+        }
+      case _ =>
+        false
+    }
+
+    override def hashCode: Int =
+      fun.hashCode + qualifier.hashCode
+  }
 
   object Idempotent {
 
@@ -74,36 +88,38 @@ class IdempotentCall extends MiniPhaseTransform {
 
       // qual.fun
       case Select(qual, _) if isExtractable(tree.symbol) =>
-        if (isStableRef(qual.symbol))
+        if (isStableRefOrConstant(qual))
           Some(Idempotent(tree.symbol, qual.symbol))
         else None
 
       // fun(args)
       case Apply(id: Ident, args) if isExtractable(id.symbol) =>
-        val argsSyms = args map (_.symbol)
-        if (argsSyms forall isStableRef)
-          Some(Idempotent(id.symbol, args = argsSyms))
+        if (args forall isStableRefOrConstant)
+          Some(Idempotent(id.symbol, args = args map (_.tpe)))
         else None
 
       // qual.fun(args)
       case Apply(fun @ Select(qual, _), args) if isExtractable(fun.symbol) =>
-        val argsSyms = args map (_.symbol)
-        if ((qual.symbol :: argsSyms) forall isStableRef)
-          Some(Idempotent(fun.symbol, qual.symbol, argsSyms))
+        if ((qual :: args) forall isStableRefOrConstant)
+          Some(Idempotent(fun.symbol, qual.symbol, args map (_.tpe)))
         else None
 
       case _ =>
         None
     }
 
-    def isStableRef(sym: Symbol)(implicit ctx: Context): Boolean =
-      if (sym.isClass) true
-      else (sym != NoSymbol) && (sym.owner == ctx.owner) && !(sym is Mutable)
+    private def isStableRefOrConstant(tree: Tree)(implicit ctx: Context): Boolean = tree match {
+      case _: Literal => true
+      case _ =>
+        val sym = tree.symbol
+        if (sym.isClass) true
+        else (sym != NoSymbol) && (sym.owner == ctx.owner) && !(sym is Mutable)
+    }
 
     /** @return Return <code>true</code> if <code>sym</code> references an
       *         extractable idempotent operation, <code>false</code> otherwise
       */
-    def isExtractable(sym: Symbol)(implicit ctx: Context): Boolean =
+    private def isExtractable(sym: Symbol)(implicit ctx: Context): Boolean =
       (sym hasAnnotation defn.IdempotentAnnot) || (sym is Lazy)
   }
 
@@ -163,8 +179,9 @@ class IdempotentCall extends MiniPhaseTransform {
           }
 
         case vd @ ValDef(name, _tpt, _) =>
+          val sym = vd.symbol.asTerm
           val tpt = transform(_tpt)
-          val rhs = withOwner(vd.symbol)(transform(vd.rhs))
+          val rhs = withOwner(sym)(transform(vd.rhs))
           cpy.ValDef(vd)(name, tpt, rhs)
 
         case td: TypeDef => td
@@ -195,9 +212,9 @@ class IdempotentCall extends MiniPhaseTransform {
 
     override def transformStats(trees: List[Tree])(implicit ctx: Context): List[Tree] = {
       trees flatMap { stat =>
-        // Prepend newly created vals to the transformed statement
         treeBuffers ::= ListBuffer.empty
         val tstat = transform(stat)
+        // Prepend newly created vals to the transformed statement
         treeBuffers.head += tstat
         val res = treeBuffers.head.toList
         treeBuffers = treeBuffers.tail
