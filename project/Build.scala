@@ -184,7 +184,9 @@ object DottyBuild extends Build {
     settings(
       addCommandAlias("partest",                   ";test:package;package;test:runMain dotc.build;lockPartestFile;test:test;runPartestRunner") ++
       addCommandAlias("partest-only",              ";test:package;package;test:runMain dotc.build;lockPartestFile;test:test-only dotc.tests;runPartestRunner") ++
-      addCommandAlias("partest-only-no-bootstrap", ";test:package;package;                        lockPartestFile;test:test-only dotc.tests;runPartestRunner")
+      addCommandAlias("partest-only-no-bootstrap", ";test:package;package;                        lockPartestFile;test:test-only dotc.tests;runPartestRunner") ++
+      addCommandAlias("test-allan",                ";test:package;package;lockPartestFile;test:test-only dotc.AllanTests;runPartestRunner") ++
+      addCommandAlias("test-allan-bootstrap",      ";test:package;package;test:runMain dotc.build;lockPartestFile;test:test-only dotc.AllanTests;runPartestRunner")
     )
 
   /** A sandbox to play with the Scala.js back-end of dotty.
