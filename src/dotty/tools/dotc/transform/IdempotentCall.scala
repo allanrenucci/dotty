@@ -6,7 +6,7 @@ import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Decorators.StringDecorator
 import dotty.tools.dotc.core.Flags._
 import dotty.tools.dotc.core.Symbols._
-import dotty.tools.dotc.core.Types.Type
+import dotty.tools.dotc.core.Types._
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
 
 import scala.collection.mutable.ListBuffer
@@ -16,7 +16,7 @@ class IdempotentCall extends MiniPhaseTransform {
   import IdempotentCall._
   import tpd._
 
-  override def phaseName: String = "IdempotentCall"
+  override def phaseName: String = "idempotentCall"
 
   override def transformDefDef(tree: DefDef)(implicit ctx: Context, info: TransformerInfo): Tree = {
 //    println(tree.show)
@@ -88,19 +88,19 @@ class IdempotentCall extends MiniPhaseTransform {
 
       // qual.fun
       case Select(qual, _) if isExtractable(tree.symbol) =>
-        if (isStableRefOrConstant(qual))
+        if (isImmutableRef(qual))
           Some(Idempotent(tree.symbol, qual.symbol))
         else None
 
       // fun(args)
       case Apply(id: Ident, args) if isExtractable(id.symbol) =>
-        if (args forall isStableRefOrConstant)
+        if (args forall isImmutableRef)
           Some(Idempotent(id.symbol, args = args map (_.tpe)))
         else None
 
       // qual.fun(args)
       case Apply(fun @ Select(qual, _), args) if isExtractable(fun.symbol) =>
-        if ((qual :: args) forall isStableRefOrConstant)
+        if ((qual :: args) forall isImmutableRef)
           Some(Idempotent(fun.symbol, qual.symbol, args map (_.tpe)))
         else None
 
@@ -108,12 +108,20 @@ class IdempotentCall extends MiniPhaseTransform {
         None
     }
 
-    private def isStableRefOrConstant(tree: Tree)(implicit ctx: Context): Boolean = tree match {
-      case _: Literal => true
-      case _ =>
-        val sym = tree.symbol
-        if (sym.isClass) true
-        else (sym != NoSymbol) && (sym.owner == ctx.owner) && !(sym is Mutable)
+    /** @return <code>true</code> if <code>tree</code> is:
+      *          - a constant
+      *          - <code>val</code>
+      *          - <code>this</code>
+      *          - <code>super</code>
+      *         <code>false</code> otherwise
+      */
+    private def isImmutableRef(tree: Tree)(implicit ctx : Context): Boolean = tree.tpe match {
+      case tr: TermRef     => !(tr.symbol is Mutable) && !(tr.symbol is Method)
+      case _: ThisType     => true
+      case _: SuperType    => true
+      case _: ConstantType => true
+      case _: RefinedThis  => true
+      case _               => false
     }
 
     /** @return Return <code>true</code> if <code>sym</code> references an
@@ -168,8 +176,11 @@ class IdempotentCall extends MiniPhaseTransform {
           }
 
         case If(cond, thenp, elsep) =>
-          val List(tcond, tthenp, telsep) = transformOpt(List(cond, thenp, elsep))
-          cpy.If(tree)(tcond, tthenp, telsep)
+          val tcond = transform(cond)
+          withContext(notOptimizable) {
+            cpy.If(tree)(tcond, transform(thenp), transform(elsep))
+          }
+
 
         case dd @ DefDef(name, tparams, vparamss, tpt, _) =>
           // Must be in a block
@@ -179,20 +190,24 @@ class IdempotentCall extends MiniPhaseTransform {
           }
 
         case vd @ ValDef(name, _tpt, _) =>
-          val sym = vd.symbol.asTerm
+          val sym = vd.symbol
           val tpt = transform(_tpt)
           val rhs = withOwner(sym)(transform(vd.rhs))
 
-          treeBuffers.headOption flatMap (_.lastOption) match {
-            // Newly created val is a duplicate of the current one
-            case Some(nvd: ValDef) if nvd.symbol == rhs.symbol && sym.info =:= nvd.tpe.widen =>
-              treeBuffers.head -= nvd
-              val idem = Idempotent(nvd.rhs).get
-              substs += idem -> sym
-              ValDef(sym, nvd.rhs)
+          // Create a new val anyway if we have a var
+          if (sym is Mutable) cpy.ValDef(vd)(name, tpt, rhs)
+          else {
+            treeBuffers.headOption flatMap (_.lastOption) match {
+              // Newly created val is a duplicate of the current one
+              case Some(nvd: ValDef) if nvd.symbol == rhs.symbol && sym.info =:= nvd.tpe.widen =>
+                treeBuffers.head -= nvd
+                val idem = Idempotent(nvd.rhs).get
+                substs += idem -> sym
+                ValDef(sym.asTerm, nvd.rhs)
 
-            case _ =>
-              cpy.ValDef(vd)(name, tpt, rhs)
+              case _ =>
+                cpy.ValDef(vd)(name, tpt, rhs)
+            }
           }
 
         case td: TypeDef => td
@@ -207,8 +222,8 @@ class IdempotentCall extends MiniPhaseTransform {
           // New idempotent call in optimizable context
           case None if octx.optimizable =>
             val holderName = ctx.freshName().toTermName
-            //val valDef = SyntheticValDef(holderName, transformed)
-            val holderSym = ctx.newSymbol(ctx.owner, holderName, Synthetic, transformed.tpe, coord = transformed.pos)
+//            val valDef = SyntheticValDef(holderName, transformed)
+            val holderSym = ctx.newSymbol(ctx.owner, holderName, Synthetic, transformed.tpe.widenExpr, coord = transformed.pos)
             val valDef = ValDef(holderSym, transformed)
             substs += idem -> valDef.symbol
             treeBuffers.head += valDef
@@ -272,7 +287,6 @@ class IdempotentCall extends MiniPhaseTransform {
       owner = saved
       result
     }
-
   }
 
 }
