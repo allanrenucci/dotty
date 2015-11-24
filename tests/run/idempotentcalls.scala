@@ -40,7 +40,7 @@ class A {
   }
 
   def test3(): Unit = {
-    val a = idem2()
+    val a = idem2
     val b = idem2()
 
     assert(count == 1)
@@ -48,6 +48,14 @@ class A {
   }
 
   def test4(): Unit = {
+    val a = idem2()
+    val b = idem2
+
+    assert(count == 1)
+    count = 0
+  }
+
+  def test5(): Unit = {
     val a = idem1 + idem2()
     val b = idem1 + idem2()
 
@@ -55,7 +63,7 @@ class A {
     count = 0
   }
 
-  def test5(): Unit = {
+  def test6(): Unit = {
     val a = idem1
     (1 to 10) map (_ => idem1)
 
@@ -63,7 +71,14 @@ class A {
     count = 0
   }
 
-  def test6(): Unit = {
+  def test6bis(): Unit = {
+    (1 to 10) map (_ => idem1)
+
+    assert(count == 10)
+    count = 0
+  }
+
+  def test7(): Unit = {
     val a = idem3(idem1)
     val b = idem1
     val c = idem3(idem1)
@@ -72,18 +87,18 @@ class A {
     count = 0
   }
 
-  def test7(a: A): Unit = {
+  def test8(a: A): Unit = {
     val i = a.idem1
     val i2 = idem1
     val i3 = this.idem1
 
-    assert(a.count == 1, s"${a.count} != 1")
+    assert(a.count == 1)
     assert(count == 1)
     a.count = 0
     count = 0
   }
 
-  def test8(): Unit = {
+  def test9(): Unit = {
     val a = idem4(idem1, idem2())
     val b = idem4(idem1, idem2())
 
@@ -91,7 +106,7 @@ class A {
     count = 0
   }
 
-  def test9(): Unit = {
+  def test10(): Unit = {
     val a = idem4(idem1 + 1, idem2())
     val b = idem2()
     val c = idem1
@@ -100,7 +115,7 @@ class A {
     count = 0
   }
 
-  def test10(): Unit = {
+  def test11(): Unit = {
     var a = idem1
     val b = idem4(a, idem1)
     a = 3
@@ -110,7 +125,7 @@ class A {
     count = 0
   }
 
-  def test11(): Unit = {
+  def test12(): Unit = {
     def impure = 1
 
     val a = idem4(impure, idem1)
@@ -120,7 +135,7 @@ class A {
     count = 0
   }
 
-  def test12(): Unit = {
+  def test13(): Unit = {
     def impure = new A
 
     val a = impure.idem3(idem1)
@@ -130,7 +145,7 @@ class A {
     count = 0
   }
 
-  def test13(): Unit = {
+  def test14(): Unit = {
     def impure = 3
 
     val a = impure + idem1
@@ -140,7 +155,7 @@ class A {
     count = 0
   }
 
-  def test14(): Unit = {
+  def test15(): Unit = {
     def impure = 3
 
     val a = idem1 + impure
@@ -150,7 +165,7 @@ class A {
     count = 0
   }
 
-  def test15(): Unit = {
+  def test16(): Unit = {
     def impure = 5
     val a = idem4(3 + impure, idem1)
     val b = idem1
@@ -159,7 +174,7 @@ class A {
     count = 0
   }
 
-  def test16(): Unit = {
+  def test17(): Unit = {
     def impure = 5
     val a = idem4(idem1, impure)
     val b = idem1
@@ -168,7 +183,7 @@ class A {
     count = 0
   }
 
-  def test17(): Unit = {
+  def test18(): Unit = {
     def impure = 5
     val a = idem4(idem1 + impure, idem2())
     val b = idem1
@@ -178,7 +193,7 @@ class A {
     count = 0
   }
 
-  def test18(): Unit = {
+  def test19(): Unit = {
     val a = idem3(1)
     val b = idem3(1)
     val c = idem4(2, 3)
@@ -188,7 +203,7 @@ class A {
     count = 0
   }
 
-  def test19(): Unit = {
+  def test20(): Unit = {
     val a = idem3(1)
     val b = idem3(2)
     val c = idem4(1, 3)
@@ -198,7 +213,7 @@ class A {
     count = 0
   }
 
-  def test20(): Unit = {
+  def test21(): Unit = {
     val a: Any = idem1
     val b = idem1
 
@@ -206,7 +221,7 @@ class A {
     count = 0
   }
 
-  def test21(): Unit = {
+  def test22(): Unit = {
     @idem def foo(i: A, j: Int) = {
       count += 1
       j
@@ -218,7 +233,7 @@ class A {
     count = 0
   }
 
-  def test22(cond: Boolean): Unit = {
+  def test23(cond: Boolean): Unit = {
     val a = idem1
 
     if (cond) idem1 else idem1
@@ -227,7 +242,7 @@ class A {
     count = 0
   }
 
-  def test23(cond: Boolean): Unit = {
+  def test24(cond: Boolean): Unit = {
     if (cond) idem1 else idem1
     val a = idem1
 
@@ -235,19 +250,19 @@ class A {
     count = 0
   }
 
-  def test24(any: Any): Unit = {
+  def test25(any: Any): Unit = {
     val a = idem1
 
-//    any match {
-//      case _: String => idem1
-//      case _ => idem1
-//    }
+    any match {
+      case _: String => idem1
+      case _ => idem1
+    }
 
     assert(count == 1)
     count = 0
   }
 
-  def test25(): Unit = {
+  def test26(): Unit = {
     @idem def idem = {
       count += 1
       true
@@ -259,6 +274,41 @@ class A {
     assert(count == 1)
     count = 0
   }
+
+//  def test27(): Unit = {
+//    bar
+//    idem1
+//    def bar = {
+//      idem1
+//    }
+//
+//    assert(count == 2)
+//    count = 0
+//  }
+
+  def test28(): Unit = {
+    val a = idem1
+    def bar = idem1
+    bar
+
+    assert(count == 1)
+    count = 0
+  }
+
+  def test29(): Unit = {
+    def bar = idem1
+    val a = idem1
+    bar
+
+    assert(count == 2)
+    count = 0
+  }
+
+  def reg1(): Unit = {
+    // TODO remove when #972 is fixed
+    Math.sqrt(3)
+  }
+
 }
 
 object Test {
@@ -274,8 +324,9 @@ object Test {
     test4()
     test5()
     test6()
-    test7(new A)
-    test8()
+    test6bis()
+    test7()
+    test8(new A)
     test9()
     test10()
     test11()
@@ -284,16 +335,22 @@ object Test {
     test14()
     test15()
     test16()
-//    test17()
-    test18()
+    test17()
+    //test18() // TODO Improvement
     test19()
     test20()
-    test22(true)
-    test22(false)
+    test21()
     test23(true)
     test23(false)
-    test24("Hello")
-    test24(1)
-    test25()
+    test24(true)
+    test24(false)
+    test25("Hello")
+    test25(1)
+    test26()
+    //test27() // FIXME
+    test28()
+    test29()
+
+    reg1()
   }
 }

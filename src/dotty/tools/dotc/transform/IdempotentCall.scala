@@ -128,7 +128,8 @@ class IdempotentCall extends MiniPhaseTransform {
       *         extractable idempotent operation, <code>false</code> otherwise
       */
     private def isExtractable(sym: Symbol)(implicit ctx: Context): Boolean =
-      (sym hasAnnotation defn.IdempotentAnnot) || (sym is Lazy)
+      if (sym hasAnnotation defn.IdempotentAnnot) true
+      else (sym is Lazy) && !(sym is JavaDefined) // lazy val and singleton objects
   }
 
 
@@ -230,8 +231,11 @@ class IdempotentCall extends MiniPhaseTransform {
             ref(valDef.symbol)
 
           // Redundant idempotent call
-          case Some(symb) => ref(symb)
-          case _          => tree
+          case Some(symb) =>
+            assert(symb.info.widen =:= transformed.tpe.widen) // TODO: Remove
+            ref(symb).ensureConforms(transformed.tpe)
+          case _ =>
+            tree
         }
       }
     }
@@ -249,7 +253,7 @@ class IdempotentCall extends MiniPhaseTransform {
     }
 
     /** Transform <code>trees</code> under the current optimisation
-      * context unitil we hit a not idempotent tree. Transform the
+      * context until we hit a not idempotent tree. Transform the
       * rest under a not optimizable context.
       */
     private def transformOpt(trees: List[Tree])(implicit ctx: Context) = {
