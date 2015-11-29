@@ -281,10 +281,23 @@ class A {
 //    def bar = {
 //      idem1
 //    }
-//
+//    code
 //    assert(count == 2)
 //    count = 0
 //  }
+//
+//  def test27i(): Unit = {
+//
+//
+//    def bar = {
+//      idem1
+//    }
+//    bar
+//    idem1
+//    assert(count == 2)
+//    count = 0
+//  }
+
 
   def test28(): Unit = {
     val a = idem1
