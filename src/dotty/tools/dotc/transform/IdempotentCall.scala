@@ -176,7 +176,7 @@ class IdempotentCall extends MiniPhaseTransform {
       }
     }
 
-    /** Evaluate <code>expr</code> with the optimisation context <code>noctx</code> */
+    /** Evaluate `expr` with the optimisation context `noctx` */
     private def withContext[T](noctx: OptimizationContext)(expr: => T) = {
       withSavedContext {
         octx = noctx
@@ -184,7 +184,7 @@ class IdempotentCall extends MiniPhaseTransform {
       }
     }
 
-    /** Evaluate <code>expr</code> saving the current context */
+    /** Evaluate `expr` saving the current context */
     private def withSavedContext[T](expr: => T) = {
       val saved = octx
       val result = expr
@@ -192,7 +192,7 @@ class IdempotentCall extends MiniPhaseTransform {
       result
     }
 
-    /** Evaluate <code>expr</code> with the owner <code>nowner</code> */
+    /** Evaluate `expr` with the owner `nowner` */
     private def withOwner[T](nowner: Symbol)(expr: => T) = {
       val saved = owner
       owner = nowner
@@ -283,12 +283,12 @@ object IdempotentCall {
       else None
     }
 
-    /** @return <code>true</code> if <code>tree</code> is:
+    /** @return `true` if `tree` is:
       *          - a constant
-      *          - <code>val</code>
-      *          - <code>this</code>
-      *          - <code>super</code>
-      *         <code>false</code> otherwise
+      *          - `val`
+      *          - `this`
+      *          - `super`
+      *         `false` otherwise
       */
     private def isImmutableRef(tree: Tree)(implicit ctx : Context): Boolean = tree.tpe match {
       case tr: TermRef     => !(tr.symbol is Mutable) && !(tr.symbol is Method)
@@ -299,8 +299,8 @@ object IdempotentCall {
       case _               => false
     }
 
-    /** @return Return <code>true</code> if <code>sym</code> references an
-      *         extractable idempotent operation, <code>false</code> otherwise
+    /** @return Return `true` if `sym` references an
+      *         extractable idempotent operation, `false` otherwise
       */
     private def isExtractable(sym: Symbol)(implicit ctx: Context): Boolean =
       if (sym hasAnnotation defn.IdempotentAnnot) true
