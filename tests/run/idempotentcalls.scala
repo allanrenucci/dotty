@@ -23,6 +23,11 @@ class A {
     count
   }
 
+  @idem def idem5[T1, T2](a: T1)(b: T2): Int = {
+    count += 1
+    count
+  }
+
   def test1(): Unit = {
     val a = idem1
     val b = idem1
@@ -275,28 +280,21 @@ class A {
     count = 0
   }
 
-//  def test27(): Unit = {
-//    bar
-//    idem1
-//    def bar = {
-//      idem1
-//    }
-//    code
-//    assert(count == 2)
-//    count = 0
-//  }
-//
-//  def test27i(): Unit = {
-//
-//
-//    def bar = {
-//      idem1
-//    }
-//    bar
-//    idem1
-//    assert(count == 2)
-//    count = 0
-//  }
+  def test27(): Unit = {
+    bar
+    idem1
+    def bar = idem1
+    assert(count == 2)
+    count = 0
+  }
+
+  def test27bis(): Unit = {
+    def bar = idem1
+    bar
+    idem1
+    assert(count == 2)
+    count = 0
+  }
 
 
   def test28(): Unit = {
@@ -312,6 +310,40 @@ class A {
     def bar = idem1
     val a = idem1
     bar
+
+    assert(count == 2)
+    count = 0
+  }
+
+  def test30(): Unit = {
+    val a = idem5(1)("Hello")
+    val b = idem5(1)("Hello")
+
+    assert(count == 1)
+    count = 0
+  }
+
+  def test31(): Unit = {
+    val a = idem5(1)("Hello")
+    val b = idem5[Int, String](1)("Hello")
+
+    assert(count == 1)
+    count = 0
+  }
+
+  def test32(): Unit = {
+    def impure = 2
+    val a = idem5(impure)(idem1)
+    val b = idem1
+
+    assert(count == 3)
+    count = 0
+  }
+
+  def test33(): Unit = {
+    def impure = 2
+    val a = idem5(idem1)(impure)
+    val b = idem1
 
     assert(count == 2)
     count = 0
@@ -360,9 +392,14 @@ object Test {
     test25("Hello")
     test25(1)
     test26()
-    //test27() // FIXME
+    test27()
+    test27bis()
     test28()
     test29()
+    test30()
+    test31()
+    test32()
+    test33()
 
     reg1()
   }
