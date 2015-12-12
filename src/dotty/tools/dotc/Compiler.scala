@@ -53,6 +53,7 @@ class Compiler {
            new LiftTry,
            new ClassOf),
       List(new PatternMatcher,
+      //--
            new ExplicitOuter,
            new ExplicitSelf,
            new CrossCastAnd,

@@ -9,94 +9,143 @@ import dotty.tools.dotc.core.Symbols._
 import dotty.tools.dotc.core.Types._
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
 
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.Buffer
 
 class IdempotentCall extends MiniPhaseTransform {
 
   import IdempotentCall._
   import tpd._
 
+  type Substitutions = Map[Idempotent, Symbol]
+
   override def phaseName: String = "idempotentCall"
 
   override def transformDefDef(tree: DefDef)(implicit ctx: Context, info: TransformerInfo): Tree = {
 //    println(tree.show)
-    val transformer = new IdempotentCallElimination(ctx.owner)
-    val result = transformer.transform(tree)
+    val result = transformDefDef(tree, Map.empty)
 //    println("-" * 50)
 //    println(result.show + "\n\n")
     result
   }
 
-  /** Transformation on trees which remove redundant idempotent calls */
-  class IdempotentCallElimination(_owner: Symbol) extends TreeMap {
+  private def transformDefDef(tree: DefDef, substs: Substitutions)(implicit ctx: Context): Tree = {
+    val DefDef(name, tparams, vparamss, tpt, _) = tree
+    val transformer = new IdempotentCallElimination(tree.symbol, substs)
+    val rhs = transformer.transform(tree.rhs)(ctx withOwner tree.symbol)
+    cpy.DefDef(tree)(name, tparams, vparamss, tpt, rhs)
+  }
 
-    /** Enclosing owner */
-    private var owner = _owner
+  /** Transformation on trees which remove redundant idempotent calls */
+  class IdempotentCallElimination(_owner: Symbol, _subst: Substitutions) extends TreeMap {
+
+    /** Enclosing block owner */
+    private var blockOwner = _owner
 
     /** Substitutions defined on idempotent calls */
-    private var substs = Map.empty[Idempotent, Symbol]
+    private var substs = _subst
 
     /** Buffers of extracted idempotent calls */
-    private var treeBuffers = List.empty[ListBuffer[Tree]]
+    private var treeBuffers = List.empty[Buffer[Tree]]
 
     /** Whether or not idempotent calls can be extracted in the current context */
     private var octx: OptimizationContext = notOptimizable
 
-    override def transform(tree: Tree)(implicit ctx: Context): Tree = tree match {
-      // Function call
-      case Apply(_, _) | TypeApply(_, _) | Select(_, _) | Ident(_) =>
-        transformMethodCall(tree)
+    /** Substitutions available for inner functions */
+    private var innerFuns: Map[Symbol, Set[Idempotent]] = Map.empty
 
-      case Block(stats, expr) =>
-        withContext(optimizable) {
-          // Save substitutions to avoid corruption by inner block
-          val saved = substs
-          val tStats = transformStats(stats)(ctx withOwner owner)
+    override def transform(tree: Tree)(implicit ctx: Context): Tree = {
+      def localCtx =
+        if (tree.hasType && tree.symbol.exists) ctx withOwner tree.symbol else ctx
 
-          treeBuffers ::= ListBuffer.empty
-          val tExpr = transform(expr)(ctx withOwner owner)
-          val vds = treeBuffers.head.toList
-          treeBuffers = treeBuffers.tail
+      tree match {
+        // Function call
+        case Apply(_, _) | TypeApply(_, _) | Select(_, _) | Ident(_) =>
+          val sym = tree.symbol
+          val isInnerFun = (sym is Method) && (sym.owner == ctx.owner)
 
-          substs = saved
-          cpy.Block(tree)(tStats ::: vds, tExpr)
-        }
+          if (isInnerFun) {
+            // Save substitions available at this method call
+            innerFuns += sym -> (substs.keySet ++ innerFuns.getOrElse(sym, Set.empty))
+          }
 
-      case If(cond, thenp, elsep) =>
-        val tcond = transform(cond)
-        withContext(notOptimizable) {
-          cpy.If(tree)(tcond, transform(thenp), transform(elsep))
-        }
+          transformMethodCall(tree)
 
-      case dd @ DefDef(name, tparams, vparamss, tpt, _) =>
-        // Must be in a block
-        withContext(notOptimizable) {
-          val rhs = withOwner(dd.symbol)(transform(dd.rhs))
-          cpy.DefDef(dd)(name, transformSub(tparams), vparamss mapConserve (transformSub(_)), transform(tpt), rhs)
-        }
+        case Block(stats, expr) =>
+          def transformStat(stat: Tree): (Buffer[Tree], Tree) = {
+            treeBuffers ::= Buffer.empty
+            val tstat = transform(stat)
+            val extracted :: tail = treeBuffers
+            treeBuffers = tail
+            (extracted, tstat)
+          }
 
-      case vd @ ValDef(name, _tpt, _) =>
-        val sym = vd.symbol
-        val tpt = transform(_tpt)
-        val rhs = withOwner(sym)(transform(vd.rhs))
-        lazy val copy = cpy.ValDef(vd)(name, tpt, rhs)
+          withContext(optimizable) {
+            // Save state of optimisation. It will be corrupted by inner transformations
+            val savedSubsts = substs
+            val savedBlockOwner = blockOwner
 
-        // Do not create a new val if duplicate of the current one
-        if (sym is Mutable) copy
-        else {
-          treeBuffers.headOption flatMap (_.lastOption) collect {
-            case nvd: ValDef if nvd.symbol == rhs.symbol && sym.info =:= nvd.tpe.widen =>
-              treeBuffers.head -= nvd
-              val idem = substs.find(_._2 == nvd.symbol).get._1
-              substs += idem -> sym
-              ValDef(sym.asTerm, nvd.rhs)
-          } getOrElse copy
-        }
+            blockOwner = ctx.owner
 
+            // transform statements and prepend extracted calls
+            val tStats = stats flatMap { stat =>
+              val (extracted, tstat) = transformStat(stat)
+              extracted += tstat
+            }
 
-      case td: TypeDef => td
-      case tt: TypTree => tt
-      case _           => super.transform(tree)
+            val (extracted, tExpr) = transformStat(expr)
+
+            // Restore state
+            substs = savedSubsts
+            blockOwner = savedBlockOwner
+
+            cpy.Block(tree)(tStats ++ extracted, tExpr)
+          }
+
+        case If(cond, thenp, elsep) =>
+          val tcond = transform(cond)
+          withContext(notOptimizable) {
+            cpy.If(tree)(tcond, transform(thenp), transform(elsep))
+          }
+
+        case dd: DefDef =>
+          // If the method call is before the method declaration, we should not
+          // use the current substitutions but the ones defined at the call place.
+          val availableSubsts = (innerFuns get dd.symbol fold substs) { idems =>
+            idems.map(i => i -> substs(i)).toMap
+          }
+          transformDefDef(dd, availableSubsts)
+
+        case vd @ ValDef(name, _tpt, _) =>
+          implicit val ctx: Context = localCtx
+
+          val sym = vd.symbol
+          val tpt = transform(_tpt)
+          val rhs = transform(vd.rhs)
+          lazy val copy = cpy.ValDef(vd)(name, tpt, rhs)
+
+          // Do not extract call if it is the rhs of a value definition:
+          // val a = idem() -/-> val $1$ = idem(); val a = $1$
+          if (sym is Mutable) copy
+          else {
+            treeBuffers.headOption flatMap (_.lastOption) collect {
+              case nvd: ValDef if nvd.symbol == rhs.symbol && sym.info =:= nvd.tpe.widen =>
+                treeBuffers.head -= nvd
+                val idem = substs.find(_._2 == nvd.symbol).get._1
+                substs += idem -> sym
+                ValDef(sym.asTerm, nvd.rhs)
+            } getOrElse copy
+          }
+
+        case temp: Template =>
+          // Don't optimize body of a class (could create not wanted fields)
+          withContext(notOptimizable) {
+            super.transform(temp)
+          }
+
+        case td: TypeDef => td
+        case tt: TypTree => tt
+        case _           => super.transform(tree)
+      }
     }
 
     private def transformMethodCall(tree: Tree)(implicit ctx: Context): Tree = {
@@ -111,6 +160,7 @@ class IdempotentCall extends MiniPhaseTransform {
       var arguments = List.empty[List[Tree]]
       var typeArguments = List.empty[Tree]
 
+      // Recursively transform inner trees and collect qualifier, arguments and type arguments
       def innerTransform(t: Tree): Tree = {
         assert(t.symbol == tree.symbol) // TODO: Remove
         t match {
@@ -134,8 +184,9 @@ class IdempotentCall extends MiniPhaseTransform {
         }
       }
 
-      // Recursively transform inner trees and collect qualifier, arguments and type arguments
-      val transformed = withSavedContext { innerTransform(tree) }
+      val transformed = withSavedContext {
+        innerTransform(tree)
+      }
       // Is this call an extractable idempotent call
       val idemOption = Idempotent.from(qualifier, tree.symbol, typeArguments, arguments)
 
@@ -144,8 +195,7 @@ class IdempotentCall extends MiniPhaseTransform {
           // New idempotent call in optimizable context
           case None if octx.optimizable =>
             val holderName = ctx.freshName().toTermName
-            //val valDef = SyntheticValDef(holderName, transformed)
-            val holderSym = ctx.newSymbol(ctx.owner, holderName, Synthetic, transformed.tpe.widenExpr, coord = transformed.pos)
+            val holderSym = ctx.newSymbol(blockOwner, holderName, Synthetic, transformed.tpe.widenExpr, coord = transformed.pos)
             val valDef = ValDef(holderSym, transformed)
             substs += idem -> valDef.symbol
             treeBuffers.head += valDef
@@ -160,19 +210,6 @@ class IdempotentCall extends MiniPhaseTransform {
           case _ =>
             transformed
         }
-      }
-    }
-
-
-    override def transformStats(trees: List[Tree])(implicit ctx: Context): List[Tree] = {
-      trees flatMap { stat =>
-        treeBuffers ::= ListBuffer.empty
-        val tstat = transform(stat)
-        // Prepend newly created vals to the transformed statement
-        treeBuffers.head += tstat
-        val res = treeBuffers.head.toList
-        treeBuffers = treeBuffers.tail
-        res
       }
     }
 
@@ -191,43 +228,37 @@ class IdempotentCall extends MiniPhaseTransform {
       octx = saved
       result
     }
+  }
 
-    /** Evaluate `expr` with the owner `nowner` */
-    private def withOwner[T](nowner: Symbol)(expr: => T) = {
-      val saved = owner
-      owner = nowner
-      val result = expr
-      owner = saved
-      result
+  private def isIdempotentExpr(tree: Tree)(implicit ctx: Context): Boolean = {
+    def isIdempotentRef(tree: Tree): Boolean = {
+      if (!tree.tpe.widen.isParameterless) true
+      else if (tree.symbol hasAnnotation defn.IdempotentAnnot) true
+      else if (!tree.symbol.isStable) false
+      else if (tree.symbol is Lazy) true
+      else true
+    }
+
+    tree match {
+      case EmptyTree | This(_) | Super(_, _) | Literal(_) =>
+        true
+      case Ident(_) =>
+        isIdempotentRef(tree)
+      case Select(qual, _) =>
+        isIdempotentExpr(qual) && isIdempotentRef(tree)
+      case TypeApply(fn, _) =>
+        isIdempotentExpr(fn)
+      case Apply(fn, args) =>
+        isIdempotentExpr(fn) && (args forall isIdempotentExpr)
+      case Typed(expr, _) =>
+        isIdempotentExpr(expr)
+      case Block(stats, expr) =>
+        isIdempotentExpr(expr) && (stats forall isIdempotentExpr)
+      case _ =>
+        false
     }
   }
 
-  private def isIdempotentExpr(tree: Tree)(implicit ctx: Context): Boolean = tree match {
-    case EmptyTree | This(_) | Super(_, _) | Literal(_) =>
-      true
-    case Ident(_) =>
-      isIdempotentRef(tree)
-    case Select(qual, _) =>
-      isIdempotentExpr(qual) && isIdempotentRef(tree)
-    case TypeApply(fn, _) =>
-      isIdempotentExpr(fn)
-    case Apply(fn, args) =>
-      isIdempotentExpr(fn) && (args forall isIdempotentExpr)
-    case Typed(expr, _) =>
-      isIdempotentExpr(expr)
-    case Block(stats, expr) =>
-      isIdempotentExpr(expr) && (stats forall isIdempotentExpr)
-    case _ =>
-      false
-  }
-
-  private def isIdempotentRef(tree: Tree)(implicit ctx: Context): Boolean = {
-    if (!tree.tpe.widen.isParameterless) true
-    else if (tree.symbol hasAnnotation defn.IdempotentAnnot) true
-    else if (!tree.symbol.isStable) false
-    else if (tree.symbol is Lazy) true
-    else true
-  }
 }
 
 object IdempotentCall {
@@ -273,6 +304,30 @@ object IdempotentCall {
     def from(qual: Tree, fun: Symbol, tpeArgs: List[Tree], args: List[List[Tree]])(implicit ctx: Context):
         Option[Idempotent] = {
 
+      /** @return `true` if `tree` is:
+        *          - a constant
+        *          - `val`
+        *          - `this`
+        *          - `super`
+        *         `false` otherwise
+        */
+      def isImmutableRef(tree: Tree) = tree.tpe match {
+        case tr: TermRef     => !(tr.symbol is Mutable) && !(tr.symbol is Method)
+        case _: ThisType     => true
+        case _: SuperType    => true
+        case _: ConstantType => true
+        case _: RefinedThis  => true
+        case _               => false
+      }
+
+      /** @return Return `true` if `sym` references an
+        *         extractable idempotent operation, `false` otherwise
+        */
+      def isExtractable(sym: Symbol) = {
+        if (sym hasAnnotation defn.IdempotentAnnot) true
+        else (sym is Lazy) && !(sym is JavaDefined) // lazy val and singleton objects
+      }
+
       val isIdem = isExtractable(fun) && (qual == EmptyTree || isImmutableRef(qual)) &&
         (args forall (_ forall isImmutableRef))
 
@@ -283,28 +338,6 @@ object IdempotentCall {
       else None
     }
 
-    /** @return `true` if `tree` is:
-      *          - a constant
-      *          - `val`
-      *          - `this`
-      *          - `super`
-      *         `false` otherwise
-      */
-    private def isImmutableRef(tree: Tree)(implicit ctx : Context): Boolean = tree.tpe match {
-      case tr: TermRef     => !(tr.symbol is Mutable) && !(tr.symbol is Method)
-      case _: ThisType     => true
-      case _: SuperType    => true
-      case _: ConstantType => true
-      case _: RefinedThis  => true
-      case _               => false
-    }
-
-    /** @return Return `true` if `sym` references an
-      *         extractable idempotent operation, `false` otherwise
-      */
-    private def isExtractable(sym: Symbol)(implicit ctx: Context): Boolean =
-      if (sym hasAnnotation defn.IdempotentAnnot) true
-      else (sym is Lazy) && !(sym is JavaDefined) // lazy val and singleton objects
   }
 
   final class OptimizationContext(val optimizable: Boolean) extends AnyVal
