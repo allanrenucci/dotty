@@ -53,7 +53,6 @@ class Compiler {
            new LiftTry,
            new ClassOf),
       List(new PatternMatcher,
-      //--
            new ExplicitOuter,
            new ExplicitSelf,
            new CrossCastAnd,
@@ -64,8 +63,8 @@ class Compiler {
            new Getters,
            new ElimByName,
            new AugmentScala2Traits,
-           new ResolveSuper),
-      List(new IdempotentCall),
+           new ResolveSuper,
+           new IdempotentCall),
       List(new Erasure),
       List(new ElimErasedValueType,
            new VCElideAllocations,

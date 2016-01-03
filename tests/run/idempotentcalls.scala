@@ -284,18 +284,10 @@ class A {
     bar
     idem1
     def bar = idem1
+
     assert(count == 2)
     count = 0
   }
-
-  def test27bis(): Unit = {
-    def bar = idem1
-    bar
-    idem1
-    assert(count == 2)
-    count = 0
-  }
-
 
   def test28(): Unit = {
     val a = idem1
@@ -311,7 +303,7 @@ class A {
     val a = idem1
     bar
 
-    assert(count == 2)
+    assert(count == 1)
     count = 0
   }
 
@@ -349,9 +341,51 @@ class A {
     count = 0
   }
 
+  def test34(): Unit = {
+    def foo(s: => Int) = s
+
+    val a = foo(idem1)
+    val b = idem1
+
+    assert(count == 2)
+    count = 0
+  }
+
+  def test35(): Unit = {
+    def foo(i: Int) = idem1 + i
+    foo(idem1)
+
+    assert(count == 1)
+    count = 0
+  }
+
+  def test36(): Unit = {
+    def foo = idem1
+
+    {
+      idem1
+      foo
+    }
+
+    {
+      idem1
+      foo
+    }
+
+
+    assert(count == 4)
+    count = 0
+
+  }
+
   def reg1(): Unit = {
     // TODO remove when #972 is fixed
     Math.sqrt(3)
+  }
+
+  def reg2(): Unit = {
+    lazy val foo: Stream[Int] = 1 #:: foo
+    foo(2)
   }
 
 }
@@ -393,14 +427,17 @@ object Test {
     test25(1)
     test26()
     test27()
-    test27bis()
     test28()
     test29()
     test30()
     test31()
     test32()
     test33()
+    test34()
+    test35()
+    test36()
 
     reg1()
+    reg2()
   }
 }
