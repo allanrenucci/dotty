@@ -12,20 +12,7 @@ import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, Transforme
 
 import scala.collection.mutable
 
-/** A transformer which performs common subexpression elimination on idempotent calls.
-  *
-  * Run after [[ElimByName]] to avoid idempotent calls extraction for by name function parameters.
-  * {{{
-  *   lazy val foo: Stream[Int] = 1 #:: foo
-  *
-  *   // Invalid idempotent calls extraction
-  *   lazy val foo: Stream[Int] = {
-  *     val $1$ = foo
-  *     1 #:: $1$
-  *   }
-  * }}}
-  *
-  */
+/** A transformer which performs common subexpression elimination on idempotent calls. */
 class IdempotentCall extends MiniPhaseTransform {
 
   import IdempotentCall._
@@ -35,6 +22,17 @@ class IdempotentCall extends MiniPhaseTransform {
 
   override def phaseName: String = "idempotentCall"
 
+  /** Should run after [[ElimByName]] to avoid idempotent calls extraction for by name function parameters.
+    * {{{
+    *   lazy val idem = ???
+    *
+    *   Some(1) getOrElse idem
+    *
+    *   // Invalid idempotent calls extraction: changes the program semantic
+    *   val $1$ = idem
+    *   Some(1) getOrElse idem
+    * }}}
+    */
   override def runsAfter: Set[Class[_ <: Phase]] = Set(classOf[ElimByName])
 
   override def transformDefDef(tree: DefDef)(implicit ctx: Context, info: TransformerInfo): Tree = {

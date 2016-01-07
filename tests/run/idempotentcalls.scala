@@ -379,7 +379,8 @@ class A {
   }
 
   def reg1(): Unit = {
-    // TODO remove when #972 is fixed
+    // TODO remove from run when #972 is fixed
+    // Duplicate of i972 in pos/idempotentcalls
     Math.sqrt(3)
   }
 
