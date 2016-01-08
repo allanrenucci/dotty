@@ -12,7 +12,9 @@ import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, Transforme
 
 import scala.collection.mutable
 
-/** A transformer which performs common subexpression elimination on idempotent calls. */
+/** A transformer which performs common subexpression elimination (CES)
+  * on idempotent function calls.
+  */
 class IdempotentCall extends MiniPhaseTransform {
 
   import IdempotentCall._
@@ -22,7 +24,8 @@ class IdempotentCall extends MiniPhaseTransform {
 
   override def phaseName: String = "idempotentCall"
 
-  /** Should run after [[ElimByName]] to avoid idempotent calls extraction for by name function parameters.
+  /** Should run after [[ElimByName]] to avoid idempotent calls extraction
+    * for by name function parameters.
     * {{{
     *   lazy val idem = ???
     *
@@ -98,6 +101,8 @@ class IdempotentCall extends MiniPhaseTransform {
 
             blockOwner = ctx.owner
 
+            // TODO Traverse once and transform non-function then traverse
+            // a second time and transform function definitions
             val (funs, others) = stats partition (_.isInstanceOf[DefDef])
 
             val tothers = others flatMap { stat =>
@@ -209,7 +214,7 @@ class IdempotentCall extends MiniPhaseTransform {
       }
 
       // Register available substitutions for inner function optimisation
-      val isInnerFun = (sym is Method) && (sym.owner == ctx.owner)
+      val isInnerFun = (sym is Method) && !sym.owner.isClass
       if (isInnerFun) {
         val substsSet = substs.toSet
         innerFuns += sym -> (innerFuns get sym fold substsSet)(_ intersect substsSet)
@@ -231,7 +236,7 @@ class IdempotentCall extends MiniPhaseTransform {
 
             // Add a new substitution for this idempotent call
             substs += idem -> valDef.symbol
-            // Add extracted value to a buffer to be inlined within the statements
+            // Add the extracted value to a buffer to be inserted before the current statement
             treeBuffers.head += valDef
             ref(valDef.symbol)
 
