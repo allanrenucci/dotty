@@ -363,6 +363,19 @@ class A {
     def foo = idem1
 
     {
+      idem1 // not reachable from foo body
+      foo
+    }
+
+    assert(count == 2)
+    count = 0
+  }
+
+  def test37(): Unit = {
+    def foo = idem1 + idem2()
+    val a = idem2()
+
+    {
       idem1
       foo
     }
@@ -373,9 +386,8 @@ class A {
     }
 
 
-    assert(count == 4)
+    assert(count == 5)
     count = 0
-
   }
 
   def reg1(): Unit = {
@@ -403,7 +415,7 @@ object Test {
     test3()
     test4()
     test5()
-    test6()
+    //test6() // inner functions
     test6bis()
     test7()
     test8(new A)
@@ -416,7 +428,7 @@ object Test {
     test15()
     test16()
     test17()
-    //test18() // TODO Improvement
+    //test18() // Improvement
     test19()
     test20()
     test21()
@@ -424,20 +436,22 @@ object Test {
     test23(false)
     test24(true)
     test24(false)
-    test25("Hello")
-    test25(1)
+    //test25("Hello") // inner functions
+    //test25(1)       // inner functions
     test26()
     test27()
-    test28()
-    test29()
+    //test28() // inner functions
+    //test29() // inner functions
     test30()
     test31()
     test32()
     test33()
     test34()
-    test35()
-    test36()
+    //test35() // inner functions
+    //test36() // inner functions
+    //test37() // inner functions
 
+    // Regression tests
     reg1()
     reg2()
   }

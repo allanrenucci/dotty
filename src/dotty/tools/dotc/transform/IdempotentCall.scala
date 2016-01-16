@@ -31,49 +31,44 @@ class IdempotentCall extends MiniPhaseTransform {
     *
     *   Some(1) getOrElse idem
     *
-    *   // Invalid idempotent calls extraction: changes the program semantic
+    *   // Invalid idempotent calls extraction: changes the program behavior
     *   val $1$ = idem
-    *   Some(1) getOrElse idem
+    *   Some(1) getOrElse $1$
     * }}}
     */
   override def runsAfter: Set[Class[_ <: Phase]] = Set(classOf[ElimByName])
 
   override def transformDefDef(tree: DefDef)(implicit ctx: Context, info: TransformerInfo): Tree = {
-    if (tree.symbol.owner.isClass) {
-      println(tree.show)
-      val result = transformDefDef(tree, Map.empty)
-      println("-" * 50)
-      println(result.show + "\n\n")
+    // Avoid transforming inner functions multiple times
+    if (!tree.symbol.owner.isClass) tree
+    else {
+      val transformer = new IdempotentCallElimination
+      val result = transformer.transform(tree)
+      //println(tree.show)
+      //println("-" * 50)
+      //println(result.show + "\n\n")
       result
     }
-    // Avoid transforming inner functions multiple times
-    else tree
-  }
-
-  private def transformDefDef(tree: DefDef, substs: Substitutions)(implicit ctx: Context): Tree = {
-    val DefDef(name, tparams, vparamss, tpt, _) = tree
-    val transformer = new IdempotentCallElimination(tree.symbol, substs)
-    val rhs = transformer.transform(tree.rhs)(ctx withOwner tree.symbol)
-    cpy.DefDef(tree)(name, tparams, vparamss, tpt, rhs)
   }
 
   /** Transformation on trees which remove duplicated idempotent calls */
-  class IdempotentCallElimination(_owner: Symbol, _subst: Substitutions) extends TreeMap {
+  class IdempotentCallElimination extends TreeMap {
 
     /** Enclosing block owner */
-    private var blockOwner = _owner
+    private var blockOwner: Symbol = NoSymbol
 
     /** Substitutions defined on idempotent calls */
-    private var substs = _subst
+    private var substs = Map.empty[Idempotent, Symbol]
+
+    /** Whether or not idempotent calls can be extracted in the current context */
+    private var octx = notOptimizable
+
+    /** Substitutions available for inner functions */
+    private var innerFuns = Map.empty[Symbol, Set[(Idempotent, Symbol)]]
 
     /** Buffers of extracted idempotent calls */
     private var treeBuffers = List.empty[mutable.Buffer[Tree]]
 
-    /** Whether or not idempotent calls can be extracted in the current context */
-    private var octx: OptimizationContext = notOptimizable
-
-    /** Substitutions available for inner functions */
-    private var innerFuns: Map[Symbol, Set[(Idempotent, Symbol)]] = Map.empty
 
     /** Rewrite the tree to contain no duplicated idempotent calls */
     override def transform(tree: Tree)(implicit ctx: Context): Tree = {
@@ -86,58 +81,66 @@ class IdempotentCall extends MiniPhaseTransform {
           transformMethodCall(tree)
 
         case Block(stats, expr) =>
-          def transformStat(stat: Tree): (mutable.Buffer[Tree], Tree) = {
-            treeBuffers ::= mutable.Buffer.empty
-            val tstat = transform(stat)
-            val extracted :: tail = treeBuffers
-            treeBuffers = tail
-            (extracted, tstat)
-          }
-
-          withContext(optimizable) {
-            // Save state of optimisation. It will be corrupted by inner transformations
-            val savedSubsts = substs
-            val savedBlockOwner = blockOwner
+          withSavedState {
+            def transformStat(stat: Tree): (mutable.Buffer[Tree], Tree) = {
+              treeBuffers ::= mutable.Buffer.empty
+              val tstat = transform(stat)
+              val extracted :: tail = treeBuffers
+              treeBuffers = tail
+              (extracted, tstat)
+            }
 
             blockOwner = ctx.owner
+            octx = optimizable // We can safely extract new calls
 
-            // TODO Traverse once and transform non-function then traverse
-            // a second time and transform function definitions
-            val (funs, others) = stats partition (_.isInstanceOf[DefDef])
-
-            val tothers = others flatMap { stat =>
-              // transform statement and prepend extracted calls
-              val (extracted, tstat) = transformStat(stat)
-              extracted += tstat
+            // We transform inner functions at the end in order to collect
+            // available idempotent calls before transforming function body
+            val tmpStats = stats flatMap {
+              case defdef: DefDef => List(defdef)
+              case stat =>
+                val (extracted, tstat) = transformStat(stat)
+                extracted += tstat // prepend extracted calls
             }
+
             val (extracted, tExpr) = transformStat(expr)
-            val tfuns = funs map transform
+
+            val tStats = (tmpStats map {
+              case defdef: DefDef => transform(defdef)
+              case other          => other
+            }) ++ extracted
 
             // Avoid creating new trees if block statements are left unchanged
-            val tStats =
-              if (extracted.isEmpty && others == tothers && funs == tfuns) stats
-              else tothers ++ extracted ++ tfuns
-
-            // Restore state
-            substs = savedSubsts
-            blockOwner = savedBlockOwner
-
-            cpy.Block(tree)(tStats, tExpr)
+            cpy.Block(tree)(if (tStats == stats) stats else tStats, tExpr)
           }
 
         case If(cond, thenp, elsep) =>
           val tcond = transform(cond)
-          withContext(notOptimizable) {
+          withSavedState {
+            // We don't want to extract call in thenp and elsep unless in a block
+            octx = notOptimizable
             cpy.If(tree)(tcond, transform(thenp), transform(elsep))
           }
 
-        case dd: DefDef =>
-          // We transform the method definition with the intersection of the substitutions
-          // defined between the method calls. If no substitution is defined at this point
-          // then the method call must be after the method declaration and we transform the
-          // method with the substitutions defined at this point.
-          val availableSubsts = (innerFuns get dd.symbol fold substs) (_.toMap)
-          transformDefDef(dd, availableSubsts)
+        case dd @ DefDef(name, tparams, vparamss, tpt, _) =>
+          withSavedState {
+            // Avoid extracting call in rhs which are not in a block
+            // def foo = idem -/-> val $1$ = idem; def foo = $1$
+            octx = notOptimizable
+
+            val sym = dd.symbol
+
+            // Filter out idempotent calls not reachable from the function body.
+            // For instance, calls whose owner is different from the function owner
+            // or not a parent of the function owner
+            //val availableSubsts = innerFuns.getOrElse(sym, Set.empty) filter (sym isContainedIn _._2.owner)
+            val availableSubsts = Set.empty // FIXME
+
+            substs = availableSubsts.toMap
+            blockOwner = sym
+
+            val rhs = transform(dd.rhs)(ctx withOwner sym)
+            cpy.DefDef(tree)(name, tparams, vparamss, tpt, rhs)
+          }
 
         case vd @ ValDef(name, _tpt, _) =>
           implicit val ctx: Context = localCtx
@@ -149,6 +152,7 @@ class IdempotentCall extends MiniPhaseTransform {
 
           // Do not extract call if it is the rhs of a value definition:
           // val a = idem() -/-> val $1$ = idem(); val a = $1$
+          // Extract it anyway if `var` or rhs' type differs from value definition (e.g. val a: Double = 1)
           if (sym is Mutable) copy
           else {
             treeBuffers.headOption flatMap (_.lastOption) collect {
@@ -161,8 +165,9 @@ class IdempotentCall extends MiniPhaseTransform {
           }
 
         case temp: Template =>
-          // Don't optimize body of a class (could create not wanted fields)
-          withContext(notOptimizable) {
+          withSavedState {
+            // Don't optimize body of a class (could create not wanted fields)
+            octx = notOptimizable
             super.transform(temp)
           }
 
@@ -185,7 +190,6 @@ class IdempotentCall extends MiniPhaseTransform {
       var arguments = List.empty[List[Tree]]
       var typeArguments = List.empty[Tree]
 
-      // Recursively transform inner trees and collect qualifier, arguments and type arguments
       def innerTransform(t: Tree): Tree = {
         assert(t.symbol == sym) // TODO: Remove
         t match {
@@ -209,11 +213,16 @@ class IdempotentCall extends MiniPhaseTransform {
         }
       }
 
-      val transformed = withSavedContext {
-        innerTransform(tree)
-      }
+      val savedOctx = octx
+      // Recursively transform and extract calls in qualifier and args.
+      // If a subtree is not idempotent, subsequent trees cannot be extracted.
+      // Thus the transformation may change the optimisation context.
+      val transformed = innerTransform(tree)
+      octx = savedOctx
 
-      // Register available substitutions for inner function optimisation
+      // To obtain the set of available substitutions of an inner function,
+      // we perform the intersection of available substitutions between all
+      // the call to the inner function.
       val isInnerFun = (sym is Method) && !sym.owner.isClass
       if (isInnerFun) {
         val substsSet = substs.toSet
@@ -251,19 +260,18 @@ class IdempotentCall extends MiniPhaseTransform {
       }
     }
 
-    /** Evaluate `expr` with the optimisation context `noctx` */
-    private def withContext[T](noctx: OptimizationContext)(expr: => T) = {
-      withSavedContext {
-        octx = noctx
-        expr
-      }
-    }
+    /** Evaluate `expr` saving the current optimisation state */
+    private def withSavedState[T](expr: => T): T = {
+      val savedOwner = blockOwner
+      val savedSubsts = substs
+      val savedOctx = octx
 
-    /** Evaluate `expr` saving the current context */
-    private def withSavedContext[T](expr: => T) = {
-      val saved = octx
       val result = expr
-      octx = saved
+
+      blockOwner = savedOwner
+      substs = savedSubsts
+      octx = savedOctx
+
       result
     }
   }
