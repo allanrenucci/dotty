@@ -130,6 +130,19 @@ class A {
     count = 0
   }
 
+  def test11bis(): Unit = {
+    val v1 = new A
+    val v2 = new A
+
+    var a = v1
+    val b = a.idem1
+    a = v2
+    val c = a.idem1
+
+    assert(v1.count == 1)
+    assert(v2.count == 1)
+  }
+
   def test12(): Unit = {
     def impure = 1
 
@@ -394,6 +407,7 @@ class A {
     // TODO remove from run when #972 is fixed
     // Duplicate of i972 in pos/idempotentcalls
     Math.sqrt(3)
+    java.util.Arrays.asList(1, 2, 3)
   }
 
   def reg2(): Unit = {
@@ -422,13 +436,14 @@ object Test {
     test9()
     test10()
     test11()
+    test11bis()
     test12()
     test13()
     test14()
     test15()
     test16()
     test17()
-    //test18() // Improvement
+    test18()
     test19()
     test20()
     test21()
