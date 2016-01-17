@@ -11,6 +11,7 @@ class AllanTests extends CompilerTest {
   val testsDir = "./tests/"
   val allandir = testsDir + "allan/"
   val runDir   = testsDir + "run/"
+  val posDir   = testsDir + "pos/"
 
   val noCheckOptions = List(
 //    "-verbose",
@@ -27,9 +28,15 @@ class AllanTests extends CompilerTest {
     "-d",
     defaultOutputDir,
     "-Ycheck:idempotentCall"
+    //"-Ycheck:tailrec,resolveSuper,idempotentCall,mixin,restoreScopes,labelDef"
   )
 
-  @Test def allan = compileFile(allandir, "Experiment")
+  //@Test def allan = compileFile(allandir, "Experiment")
   //@Test def allan = compileFile(allandir, "Test")
+  //@Test def pos = compileFile(posDir, "idempotentcalls")
   //@Test def idempotent = runFile(runDir, "idempotentcalls")
+  @Test def runAll = runFiles(runDir)
+
+  //@Test def fixme1 = runFile(runDir, "t4859") // Initialisation order
+  //@Test def idemSource = compileFile("./src/dotty/tools/dotc/transform/", "IdempotentCall")
 }
