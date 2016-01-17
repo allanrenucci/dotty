@@ -64,6 +64,12 @@ class IdempotentCall extends MiniPhaseTransform {
     /** Substitutions available for inner functions */
     private var innerFuns = Map.empty[Symbol, Set[(Idempotent, Symbol)]]
 
+    /** Depth of the currently visited tree */
+    private var currentDepth = 0
+
+    /** Depth of extracted idempotent calls */
+    private var depths = Map.empty[Symbol, Int]
+
     /** Buffers of extracted idempotent calls */
     private var treeBuffers = List.empty[mutable.Buffer[Tree]]
 
@@ -90,6 +96,7 @@ class IdempotentCall extends MiniPhaseTransform {
 
             blockOwner = ctx.owner
             octx = Optimizable // We can safely extract new calls
+            currentDepth += 1
 
             // We transform inner functions at the end in order to collect
             // available idempotent calls before transforming function bodies
@@ -125,18 +132,19 @@ class IdempotentCall extends MiniPhaseTransform {
             // def foo = idem -/-> val $1$ = idem; def foo = $1$
             octx = NotOptimizable
 
-            val sym = dd.symbol
+            val funSym = dd.symbol
 
             // Filter out idempotent calls not reachable from the function body.
-            // For instance, calls whose owner is different from the function owner
-            // or not a parent of the function owner
-            //val availableSubsts = innerFuns.getOrElse(sym, Set.empty) filter (sym isContainedIn _._2.owner)
-            val availableSubsts = Set.empty // FIXME
+            // For instance, calls which are defined deeper than the function.
+            val availableSubsts = innerFuns.getOrElse(funSym, Set.empty) filter {
+              case (_, subst) =>
+                depths(subst) <= currentDepth
+            }
 
             substs = availableSubsts.toMap
-            blockOwner = sym
+            blockOwner = funSym
 
-            val rhs = transform(dd.rhs)(ctx withOwner sym)
+            val rhs = transform(dd.rhs)(ctx withOwner funSym)
             cpy.DefDef(tree)(name, tparams, vparamss, tpt, rhs)
           }
 
@@ -157,6 +165,7 @@ class IdempotentCall extends MiniPhaseTransform {
                 treeBuffers.head -= nvd
                 val idem = substs.find(_._2 == nvd.symbol).get._1
                 substs += idem -> sym
+                depths += sym -> currentDepth
                 ValDef(sym.asTerm, nvd.rhs)
             } getOrElse copy
           }
@@ -240,6 +249,8 @@ class IdempotentCall extends MiniPhaseTransform {
 
             // Add a new substitution for this idempotent call
             substs += idem -> valDef.symbol
+            depths += valDef.symbol -> currentDepth
+
             // Add the extracted value to a buffer to be inserted before the current statement
             treeBuffers.head += valDef
             ref(valDef.symbol)
@@ -260,12 +271,14 @@ class IdempotentCall extends MiniPhaseTransform {
       val savedOwner = blockOwner
       val savedSubsts = substs
       val savedOctx = octx
+      val savedDepth = currentDepth
 
       val result = expr
 
       blockOwner = savedOwner
       substs = savedSubsts
       octx = savedOctx
+      currentDepth = savedDepth
 
       result
     }

@@ -116,7 +116,7 @@ class A {
     val b = idem2()
     val c = idem1
 
-    assert(count == 3)
+    assert(count == 4)
     count = 0
   }
 
@@ -429,7 +429,7 @@ object Test {
     test3()
     test4()
     test5()
-    //test6() // inner functions
+    test6() // inner functions
     test6bis()
     test7()
     test8(new A)
@@ -451,20 +451,20 @@ object Test {
     test23(false)
     test24(true)
     test24(false)
-    //test25("Hello") // inner functions
-    //test25(1)       // inner functions
+    test25("Hello") // inner functions
+    test25(1)       // inner functions
     test26()
     test27()
-    //test28() // inner functions
-    //test29() // inner functions
+    test28() // inner functions
+    test29() // inner functions
     test30()
     test31()
     test32()
     test33()
     test34()
-    //test35() // inner functions
-    //test36() // inner functions
-    //test37() // inner functions
+    test35() // inner functions
+    test36() // inner functions
+    test37() // inner functions
 
     // Regression tests
     reg1()
