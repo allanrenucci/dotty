@@ -136,7 +136,7 @@ class IdempotentCall extends MiniPhaseTransform {
 
             // Filter out idempotent calls not reachable from the function body.
             // For instance, calls which are defined deeper than the function.
-            val availableSubsts = innerFuns.getOrElse(funSym, Set.empty[(Idempotent, Symbol)]) filter {
+            val availableSubsts = innerFuns.getOrElse(funSym, Set.empty) filter {
               case (_, subst) =>
                 depths(subst) <= currentDepth
             }
