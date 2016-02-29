@@ -1,0 +1,3 @@
+[submodule "dotty-annotated"]
+	path = dotty-annotated
+	url = https://github.com/allanrenucci/dotty/

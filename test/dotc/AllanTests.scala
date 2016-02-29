@@ -1,5 +1,7 @@
 package dotc
 
+import java.io.File
+
 import org.junit.Test
 
 import test._
@@ -8,10 +10,7 @@ class AllanTests extends CompilerTest {
 
   override val defaultOutputDir: String = "./out/"
 
-  val testsDir = "./tests/"
-  val allandir = testsDir + "allan/"
-  val runDir   = testsDir + "run/"
-  val posDir   = testsDir + "pos/"
+  val dottyDir  = "./dotty-annotated/src/dotty/"
 
   val noCheckOptions = List(
 //    "-verbose",
@@ -23,20 +22,35 @@ class AllanTests extends CompilerTest {
     "160")
 
   implicit val defaultOptions = noCheckOptions ++ List(
-    "-Yno-deep-subtypes",
     "-Yno-double-bindings",
     "-d",
-    defaultOutputDir,
-    "-Ycheck:idempotentCall"
-    //"-Ycheck:tailrec,resolveSuper,idempotentCall,mixin,restoreScopes,labelDef"
+    defaultOutputDir
   )
 
-  //@Test def allan = compileFile(allandir, "Experiment")
-  //@Test def allan = compileFile(allandir, "Test")
-  //@Test def pos = compileFile(posDir, "idempotentcalls")
-  //@Test def idempotent = runFile(runDir, "idempotentcalls")
-  @Test def runAll = runFiles(runDir)
+  private def deleteFilesInFolder(folder: File, deleteFolder: Boolean = false): Unit = {
+    val files = folder.listFiles()
 
-  //@Test def fixme1 = runFile(runDir, "t4859") // Initialisation order
-  //@Test def idemSource = compileFile("./src/dotty/tools/dotc/transform/", "IdempotentCall")
+    files foreach { file =>
+      if (file.isDirectory)
+        deleteFilesInFolder(file, deleteFolder = true)
+      else
+        file.delete()
+    }
+
+    if (deleteFolder)
+      folder.delete()
+  }
+
+  private def dotty() = compileDir(dottyDir, ".", List("-deep", "-Ycheck-reentrant", "-strict"))
+
+  @Test def build(): Unit = {
+    println("------------  Building dotty  ------------")
+    // Empty output dir
+    deleteFilesInFolder(new File(defaultOutputDir))
+    // Build dotty
+    dotty()
+    // Make jar
+    val p = Runtime.getRuntime.exec(Array("jar", "cf", "dotty.jar", "-C", "out", "."))
+    p.waitFor()
+  }
 }
