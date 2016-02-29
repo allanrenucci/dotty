@@ -5,7 +5,7 @@ package ast
 import core._
 import Types._, Names._, Flags._, util.Positions._, Contexts._, Constants._, SymDenotations._, Symbols._
 import Denotations._, StdNames._
-import annotation.tailrec
+import scala.annotation.{Idempotent, tailrec}
 import language.higherKinds
 import collection.IndexedSeqOptimized
 import collection.immutable.IndexedSeq
@@ -185,7 +185,7 @@ object Trees {
     def denot(implicit ctx: Context): Denotation = NoDenotation
 
     /** Shorthand for `denot.symbol`. */
-    final def symbol(implicit ctx: Context): Symbol = denot.symbol
+    @Idempotent final def symbol(implicit ctx: Context): Symbol = denot.symbol
 
     /** Does this tree represent a type? */
     def isType: Boolean = false
