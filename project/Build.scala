@@ -132,7 +132,14 @@ object DottyBuild extends Build {
        addCommandAlias("partest-only",             ";test:package;package;test:runMain dotc.build;lockPartestFile;test:test-only dotc.tests;runPartestRunner") ++
        addCommandAlias("partest-only-no-bootstrap", ";test:package;package;                        lockPartestFile;test:test-only dotc.tests;runPartestRunner")
 
-  lazy val dotty = Project(id = "dotty", base = file("."), settings = defaults)
+
+  lazy val remote = inputKey[Unit]("Remote run task")
+
+  lazy val dotty = Project(id = "dotty", base = file("."), settings = defaults) settings (
+    fork in remote := true,
+    javaOptions in remote += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005",
+    fullRunInputTask(remote, Compile, "dotty.tools.dotc.Main")
+  )
 
   lazy val benchmarkSettings = Defaults.coreDefaultSettings ++ Seq(
 

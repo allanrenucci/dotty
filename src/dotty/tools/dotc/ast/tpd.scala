@@ -266,12 +266,12 @@ object tpd extends Trees.Instance[Type] with TypedTreeInfo {
    *  Its position is the union of all functions in `fns`.
    */
   def AnonClass(parents: List[Type], fns: List[TermSymbol], methNames: List[TermName])(implicit ctx: Context): Block = {
-    val owner = fns.head.owner
+    val owner = ctx.owner
     val parents1 =
       if (parents.head.classSymbol.is(Trait)) defn.ObjectType :: parents
       else parents
-    val cls = ctx.newNormalizedClassSymbol(owner, tpnme.ANON_FUN, Synthetic, parents1,
-        coord = fns.map(_.pos).reduceLeft(_ union _))
+    val cls = ctx.newNormalizedClassSymbol(owner, tpnme.ANON_CLASS, Synthetic | Final, parents1,
+        coord = fns.map(_.pos).fold(NoPosition)(_ union _))
     val constr = ctx.newConstructor(cls, Synthetic, Nil, Nil).entered
     def forwarder(fn: TermSymbol, name: TermName) = {
       val fwdMeth = fn.copy(cls, name, Synthetic | Method).entered.asTerm

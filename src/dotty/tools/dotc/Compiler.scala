@@ -42,9 +42,11 @@ class Compiler {
       //      List(new Replace),
       List(new Pickler),
       //List(new ExpandPrivate),
+      List(new PreAutoCollection),
       List(new CollectSummaries),
       List(new BuildCallGraph),
-      List(new AnalyzeClosures),
+      List(new AutoCollection),
+      /*List(new AnalyzeClosures),
       List(new FirstTransform,
            new CheckReentrant),
       List(new PreSpecializer,
@@ -95,7 +97,7 @@ class Compiler {
            new MinimizeClosures,
            new CollectEntryPoints,
            new LabelDefs),
-      List(new GenBCode)
+      List(new GenBCode)*/
     )
 
   var runId = 1
