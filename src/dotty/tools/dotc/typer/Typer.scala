@@ -113,6 +113,7 @@ class Typer extends Namer with TypeAssigner with Applications with Implicits wit
          (denot.symbol is (Method, butNot = Accessor)))
 
     /** Find the denotation of enclosing `name` in given context `ctx`.
+     *
      *  @param previous    A denotation that was found in a more deeply nested scope,
      *                     or else `NoDenotation` if nothing was found yet.
      *  @param prevPrec    The binding precedence of the previous denotation,
@@ -417,9 +418,13 @@ class Typer extends Namer with TypeAssigner with Applications with Implicits wit
           typed(Bind(id.name, Typed(Ident(name), tree.tpt)).withPos(id.pos), pt)
         }
       case _ =>
-        if (untpd.isWildcardStarArg(tree))
-          seqToRepeated(typedExpr(tree.expr, defn.SeqType))
-        else
+        if (untpd.isWildcardStarArg(tree)) {
+          def prototype =
+            if (pt.derivesFrom(ctx.definitions.SeqClass))
+              defn.SeqType.appliedTo(pt.baseArgTypes(ctx.definitions.SeqClass))
+            else defn.SeqType
+          seqToRepeated(typedExpr(tree.expr, prototype))
+        } else
           regularTyped(isWildcard = false)
     }
   }
