@@ -6,12 +6,12 @@ import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.{Type, TypeRef}
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
 
-class PreAutoCollection extends MiniPhaseTransform {
+class PreAutoCollections extends MiniPhaseTransform {
 
-  import AutoCollection._
+  import AutoCollections._
   import tpd._
 
-  override def phaseName: String = "preautocollection"
+  override def phaseName: String = "preautocollections"
 
   var anonClasses = Map.empty[Block, (List[Tree], List[Type])]
 
@@ -31,5 +31,14 @@ class PreAutoCollection extends MiniPhaseTransform {
       anonCls
     }
   }
+
+}
+
+object PreAutoCollections {
+  sealed trait Semantic
+  case object Immutable extends Semantic
+  case object Mutable extends Semantic
+  case object Lazy extends Semantic
+
 
 }
