@@ -6,9 +6,10 @@ import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Decorators.StringDecorator
 import dotty.tools.dotc.core.StdNames._
 import dotty.tools.dotc.core.Symbols.Symbol
-import dotty.tools.dotc.core.Types.MethodicType
-import dotty.tools.dotc.transform.AutoCollections._
+import dotty.tools.dotc.core.Types.{MethodicType, Type}
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
+
+import AutoCollections._
 
 /** A transformation which substitutes an auto collection constructor by a
   * dummy implementation in order to track the methods called on the collection
@@ -38,9 +39,11 @@ class PreAutoCollections extends MiniPhaseTransform {
       (constructors contains tree.symbol) && !tree.tpe.isInstanceOf[MethodicType]
     }
 
-    if (!isAutoCollectionConstructor(tree))
-      return tree
+    if (isAutoCollectionConstructor(tree)) transform(tree)
+    else tree
+  }
 
+  private def transform(tree: Apply)(implicit ctx: Context): Block = {
     val Apply(Apply(_, elems), List(sem)) = tree
     val semanticSym = sem.tpe.widen.classSymbol.companionModule
 
@@ -55,7 +58,7 @@ class PreAutoCollections extends MiniPhaseTransform {
       }
 
       val anon = AnonClass(impl.appliedTo(tpParams) :: Nil, Nil, Nil)
-      instances += anon -> new AutoSeq(semantic, tpParams.head, elems, anon.tpe.classSymbol)
+      instances += anon -> new AutoSeq(anon.tpe.classSymbol, semantic, tpParams, elems)
 
       anon
     }
@@ -71,8 +74,7 @@ class PreAutoCollections extends MiniPhaseTransform {
       }
 
       val anon = AnonClass(impl.appliedTo(tpParams) :: Nil, Nil, Nil)
-      val List(keysTpe, valuesTpe) = tpParams
-      instances += anon -> new AutoMap(semantic, keysTpe, valuesTpe, elems, anon.tpe.classSymbol)
+      instances += anon -> new AutoMap(anon.tpe.classSymbol, semantic, tpParams, elems)
 
       anon
     }
@@ -88,7 +90,7 @@ class PreAutoCollections extends MiniPhaseTransform {
       }
 
       val anon = AnonClass(impl.appliedTo(tpParams) :: Nil, Nil, Nil)
-      instances += anon -> new AutoSet(semantic, tpParams.head, elems, anon.tpe.classSymbol)
+      instances += anon -> new AutoSet(anon.tpe.classSymbol, semantic, tpParams, elems)
 
       anon
     }
@@ -132,6 +134,7 @@ object PreAutoCollections {
 
   def AutoMapSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
     ctx.requiredModule(s"scala.collection.AutoCollections.AutoMap.$sem"))
+
 
   // ------------ Set ------------
   def AutoSetApply(implicit ctx: Context) = autoCollectionApply("AutoSet")
