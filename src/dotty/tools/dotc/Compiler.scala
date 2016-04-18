@@ -42,7 +42,7 @@ class Compiler {
       //      List(new Replace),
       List(new Pickler),
       //List(new ExpandPrivate),
-      List(new PreAutoCollection),
+      List(new PreAutoCollections),
       List(new CollectSummaries),
       List(new BuildCallGraph),
       List(new AutoCollection),

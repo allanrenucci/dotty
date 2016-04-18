@@ -28,7 +28,7 @@ class AllanTests extends CompilerTest {
     "-d",
     defaultOutputDir,
     "-Xprint:preauto,auto",
-    "-Ycheck:preauto"
+    "-Ycheck:auto"
   )
 
   @Test def allan = compileFile(allandir, "Experiment")

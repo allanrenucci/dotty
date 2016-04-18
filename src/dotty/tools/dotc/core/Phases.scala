@@ -243,7 +243,7 @@ object Phases {
     private val specializeCache = new PhaseCache(classOf[TypeSpecializer])
     private val summariesCahce = new PhaseCache(classOf[CollectSummaries])
     private val outerSpecCahce = new PhaseCache(classOf[OuterSpecializer])
-    private val preAutoCollectionCache = new PhaseCache(classOf[PreAutoCollection])
+    private val preAutoCollectionCache = new PhaseCache(classOf[PreAutoCollections])
 
     def typerPhase = typerCache.phase
     def picklerPhase = picklerCache.phase
