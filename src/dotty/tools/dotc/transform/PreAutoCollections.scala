@@ -6,7 +6,7 @@ import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Decorators.StringDecorator
 import dotty.tools.dotc.core.StdNames._
 import dotty.tools.dotc.core.Symbols.Symbol
-import dotty.tools.dotc.core.Types.{MethodicType, Type}
+import dotty.tools.dotc.core.Types.MethodicType
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
 
 import AutoCollections._

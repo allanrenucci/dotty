@@ -17,7 +17,7 @@ import scala.collection.{immutable, mutable}
   * Immutable
   *
   * - AutoSeq
-  *   - [[mutable.UnrolledBuffer]] if `head` and `tail` are the only operations
+  *   - [[mutable.ListBuffer]] if `head` and `tail` are the only operations
   *   - [[immutable.Queue]] if `:+` and `+:` are used
   *   - [[Array]] if operations are by index accesses (e.g. `apply`), unless elements are [[Char]] then use [[String]]
   *   - [[immutable.Range]] if all elements are numbers with a constant delta
@@ -34,20 +34,22 @@ import scala.collection.{immutable, mutable}
   *   // we need to create a [[immutable.TreeMap]], otherwise follow the algorithm above
   *
   * - AutoSet
+  *   - [[immutable.BitSet]] if elements' type is [[Int]]
+  *   - [[immutable.HashSet]] otherwise
   *
   * Mutable
   *
   * - AutoSeq
   *   - [[Array]] if operations are by index accesses (e.g. `apply`)
   *   - otherwise:
-  *     - UnrolledBuffer if type is known
-  *     - ListBuffer otherwise
+  *     - [[mutable.UnrolledBuffer]] if type is known
+  *     - [[mutable.ListBuffer]] otherwise
   *
   * - AutoMap
-  *   - [[mutable.HashSet]]
+  *   - [[mutable.HashMap]]
   *
   * - AutoSet
-  *   - [[mutable.BitSet]] for [[Int]]
+  *   - [[mutable.BitSet]] if elements' type is [[Int]]
   *   - [[mutable.HashSet]] otherwise
   *
   * Lazy
@@ -82,47 +84,79 @@ class AutoCollections extends MiniPhaseTransform {
       .map(_.name)
 
     collection match {
-      case AutoSeq(Immutable) =>
-        val impl =
-          if (methods == Set(head, tail))
-            ListBuffer
-          else if ((methods contains `+:`) || (methods contains `:+`))
-            ImmutableQueue
-          else if ((methods contains apply) || (methods contains isDefinedAt))
-            Array
-          else Vector
+      // ------------ Immutable ------------
 
-        appliedTo(impl)
+      // if `head` and `tail` are the only operations
+      case AutoSeq(Immutable) if methods.containsOnly(head, tail) =>
+        appliedTo(ListBuffer)
 
-      case AutoSeq(Mutable) =>
+      // if `:+` and `+:` are used
+      case AutoSeq(Immutable) if methods.containsSome(`+:`, `:+`) =>
+        appliedTo(ImmutableQueue)
+
+      // if operations are by index accesses
+      case AutoSeq(Immutable) if methods.containsSome(apply, isDefinedAt) =>
         appliedTo(Array)
+        ??? // FIXME: Array(xs: T*)(implicit arg0: classTag[T])
 
-      case AutoSeq(Lazy) =>
-        ???
+      // TODO: Range if all elements are numbers with a constant delta
 
-      case AutoMap(Immutable) =>
-        val impl =
-          if (methods contains plus)
-            ImmutableHashMap
-          else
-            ImmutableHashMap
+      // default
+      case AutoSeq(Immutable) =>
+        appliedTo(Vector)
 
-        appliedTo(impl)
+      // if elements are added
+      case AutoMap(Immutable) if methods.containsSome(plus, `++`) =>
+        appliedTo(ImmutableHashMap)
+
+      // TODO: AnyRefMap if the type parameters does not include primitives
+
+      //  if the keys' type is Long
+      case map @ AutoMap(Immutable) if map.keysTpe =:= ctx.definitions.LongType =>
+        appliedTo(LongMap, map.valuesTpe :: Nil)
+
+      // default
+      case map @ AutoMap(Immutable) =>
+        appliedTo(MutableHashMap)
+
+      // if elements' type is Int
+      case set @ AutoSet(Immutable) if set.tpParam =:= ctx.definitions.IntType =>
+        appliedTo(ImmutableBitSet, Nil)
+
+      // default
+      case AutoSet(Immutable) =>
+        appliedTo(ImmutableHashSet)
+
+
+      // ------------ Mutable ------------
+
+      // if operations are by index accesses
+      case AutoSeq(Mutable) if methods.containsSome(apply, isDefinedAt, update) =>
+        appliedTo(Array)
+        ??? // FIXME: Array(xs: T*)(implicit arg0: classTag[T])
+
+      // TODO: UnrolledBuffer(xs: T*)(implicit arg0: classTag[T]) if type is known
+
+      // default
+      case AutoSeq(Mutable) =>
+        appliedTo(ListBuffer)
 
       case AutoMap(Mutable) =>
         appliedTo(MutableHashMap)
 
-      case AutoMap(Lazy) =>
-        ???
+      // if elements' type is Int
+      case set @ AutoSet(Mutable) if set.tpParam =:= ctx.definitions.IntType =>
+        appliedTo(MutableBitSet, Nil)
 
-      case AutoSet(Immutable) =>
-        appliedTo(ImmutableHashSet)
-
+      // default
       case AutoSet(Mutable) =>
         appliedTo(MutableHashSet)
 
-      case AutoSet(Lazy) =>
-        ???
+
+      // ------------ Lazy ------------
+      case AutoSeq(Lazy) => ???
+      case AutoMap(Lazy) => ???
+      case AutoSet(Lazy) => ???
     }
   }
 
@@ -205,12 +239,16 @@ object AutoCollections {
 
   def ImmutableHashMap(implicit ctx: Context) = ctx.requiredModule("scala.collection.immutable.HashMap")
   def MutableHashMap(implicit ctx: Context)   = ctx.requiredModule("scala.collection.mutable.HashMap")
+  def AnyRefMap(implicit ctx: Context)        = ctx.requiredModule("scala.collection.mutable.AnyRefMap")
+  def LongMap(implicit ctx: Context)          = ctx.requiredModule("scala.collection.immutable.LongMap")
 
   // ------------ Set ------------
   def SetClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Set")
 
   def ImmutableHashSet(implicit ctx: Context) = ctx.requiredModule("scala.collection.immutable.HashSet")
   def MutableHashSet(implicit ctx: Context)   = ctx.requiredModule("scala.collection.mutable.HashSet")
+  def ImmutableBitSet(implicit ctx: Context)  = ctx.requiredModule("scala.collection.immutable.BitSet")
+  def MutableBitSet(implicit ctx: Context)    = ctx.requiredModule("scala.collection.mutable.BitSet")
 
 
   object Methods {
@@ -221,5 +259,12 @@ object AutoCollections {
     val `+:`        = "+:".toTermName.encode
     val `:+`        = "+:".toTermName.encode
     val plus        = "+".toTermName.encode
+    val `++`        = "++".toTermName.encode
+    val update      = "update".toTermName
+  }
+
+  private implicit class SetOps[T](val set: Set[T]) extends AnyVal {
+    def containsSome(args: T*): Boolean = args.exists(set.contains)
+    def containsOnly(args: T*): Boolean = set == args.toSet
   }
 }
