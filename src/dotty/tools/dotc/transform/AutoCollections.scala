@@ -34,8 +34,7 @@ import scala.collection.{immutable, mutable}
   *   // we need to create a [[immutable.TreeMap]], otherwise follow the algorithm above
   *
   * - AutoSet
-  *   - [[immutable.BitSet]] if elements' type is [[Int]]
-  *   - [[immutable.HashSet]] otherwise
+  *   - [[immutable.HashSet]]
   *
   * Mutable
   *
@@ -49,11 +48,10 @@ import scala.collection.{immutable, mutable}
   *   - [[mutable.HashMap]]
   *
   * - AutoSet
-  *   - [[mutable.BitSet]] if elements' type is [[Int]]
-  *   - [[mutable.HashSet]] otherwise
+  *   - [[mutable.HashSet]]
   *
   * Lazy
-  *   ???
+  *   - Not yet supported
   */
 class AutoCollections extends MiniPhaseTransform {
 
@@ -119,10 +117,6 @@ class AutoCollections extends MiniPhaseTransform {
       case map @ AutoMap(Immutable) =>
         appliedTo(MutableHashMap)
 
-      // if elements' type is Int
-      case set @ AutoSet(Immutable) if set.tpParam =:= ctx.definitions.IntType =>
-        appliedTo(ImmutableBitSet, Nil)
-
       // default
       case AutoSet(Immutable) =>
         appliedTo(ImmutableHashSet)
@@ -143,10 +137,6 @@ class AutoCollections extends MiniPhaseTransform {
 
       case AutoMap(Mutable) =>
         appliedTo(MutableHashMap)
-
-      // if elements' type is Int
-      case set @ AutoSet(Mutable) if set.tpParam =:= ctx.definitions.IntType =>
-        appliedTo(MutableBitSet, Nil)
 
       // default
       case AutoSet(Mutable) =>
@@ -247,8 +237,6 @@ object AutoCollections {
 
   def ImmutableHashSet(implicit ctx: Context) = ctx.requiredModule("scala.collection.immutable.HashSet")
   def MutableHashSet(implicit ctx: Context)   = ctx.requiredModule("scala.collection.mutable.HashSet")
-  def ImmutableBitSet(implicit ctx: Context)  = ctx.requiredModule("scala.collection.immutable.BitSet")
-  def MutableBitSet(implicit ctx: Context)    = ctx.requiredModule("scala.collection.mutable.BitSet")
 
 
   object Methods {

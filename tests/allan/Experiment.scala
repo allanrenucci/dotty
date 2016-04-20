@@ -27,8 +27,7 @@ object Experiment {
 
     val map3 = AutoMap[String, Int]()(AutoMap.Immutable) // mutable.HashMap
 
-    val set1 = AutoSet(1) // immutable.BitSet
-    val set2 = AutoSet[String]("A")(AutoSet.Immutable) // immutable.HashSet
+    val set1 = AutoSet[String]("A")(AutoSet.Immutable) // immutable.HashSet
 
 
     // ------------ Mutable ------------
@@ -39,8 +38,7 @@ object Experiment {
 
     val map4 = AutoMap[Int, Int]()(AutoMap.Mutable) // mutable.HashMap
 
-    val set3 = AutoSet(1)(AutoSet.Mutable) // mutable.BitSet
-    val set4 = AutoSet[String]("A")(AutoSet.Mutable) // mutable.HashSet
+    val set2 = AutoSet[String]("A")(AutoSet.Mutable) // mutable.HashSet
 
     ()
   }
