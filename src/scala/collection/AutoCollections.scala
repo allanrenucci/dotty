@@ -1,5 +1,8 @@
 package scala.collection
 
+import scala.collection.immutable.WrappedString
+import scala.reflect.ClassTag
+
 object AutoCollections {
 
   // ------------ Seq ------------
@@ -102,4 +105,9 @@ object AutoCollections {
     override def iterator: Iterator[T] = ???
   }
 
+  def wrappedString(chars: Char*): WrappedString =
+    new WrappedString(chars.mkString)
+
+  def wrappedArray[T](args: T*)(implicit classTag: ClassTag[T]): mutable.WrappedArray[T] =
+    mutable.WrappedArray.make[T](Array(args: _*)(classTag))
 }

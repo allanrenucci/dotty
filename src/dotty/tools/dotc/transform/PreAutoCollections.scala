@@ -7,9 +7,8 @@ import dotty.tools.dotc.core.Decorators.StringDecorator
 import dotty.tools.dotc.core.StdNames._
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.MethodicType
+import dotty.tools.dotc.transform.AutoCollections._
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
-
-import AutoCollections._
 
 /** A transformation which substitutes an auto collection constructor by a
   * dummy implementation in order to track the methods called on the collection
@@ -115,35 +114,41 @@ object PreAutoCollections {
 
 
   // ------------ Seq ------------
-  def AutoSeqApply(implicit ctx: Context) = autoCollectionApply("AutoSeq")
+  private def SeqClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Seq")
 
-  def ImmutableSeqType(implicit ctx: Context) = autoCollectionType("ImmutableSeq")
-  def MutableSeqType(implicit ctx: Context)   = autoCollectionType("MutableSeq")
-  def LazySeqType(implicit ctx: Context)      = autoCollectionType("LazySeq")
+  private def AutoSeqApply(implicit ctx: Context) = autoCollectionApply("AutoSeq")
 
-  def AutoSeqSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
+  private def ImmutableSeqType(implicit ctx: Context) = autoCollectionType("ImmutableSeq")
+  private def MutableSeqType(implicit ctx: Context)   = autoCollectionType("MutableSeq")
+  private def LazySeqType(implicit ctx: Context)      = autoCollectionType("LazySeq")
+
+  private def AutoSeqSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
     ctx.requiredModule(s"scala.collection.AutoCollections.AutoSeq.$sem"))
 
 
   // ------------ Map ------------
-  def AutoMapApply(implicit ctx: Context) = autoCollectionApply("AutoMap")
+  private def MapClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Map")
 
-  def ImmutableMapType(implicit ctx: Context) = autoCollectionType("ImmutableMap")
-  def MutableMapType(implicit ctx: Context)   = autoCollectionType("MutableMap")
-  def LazyMapType(implicit ctx: Context)      = autoCollectionType("LazyMap")
+  private def AutoMapApply(implicit ctx: Context) = autoCollectionApply("AutoMap")
 
-  def AutoMapSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
+  private def ImmutableMapType(implicit ctx: Context) = autoCollectionType("ImmutableMap")
+  private def MutableMapType(implicit ctx: Context)   = autoCollectionType("MutableMap")
+  private def LazyMapType(implicit ctx: Context)      = autoCollectionType("LazyMap")
+
+  private def AutoMapSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
     ctx.requiredModule(s"scala.collection.AutoCollections.AutoMap.$sem"))
 
 
   // ------------ Set ------------
-  def AutoSetApply(implicit ctx: Context) = autoCollectionApply("AutoSet")
+  private def SetClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Set")
 
-  def ImmutableSetType(implicit ctx: Context) = autoCollectionType("ImmutableSet")
-  def MutableSetType(implicit ctx: Context)   = autoCollectionType("MutableSet")
-  def LazySetType(implicit ctx: Context)      = autoCollectionType("LazySet")
+  private def AutoSetApply(implicit ctx: Context) = autoCollectionApply("AutoSet")
 
-  def AutoSetSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
+  private def ImmutableSetType(implicit ctx: Context) = autoCollectionType("ImmutableSet")
+  private def MutableSetType(implicit ctx: Context)   = autoCollectionType("MutableSet")
+  private def LazySetType(implicit ctx: Context)      = autoCollectionType("LazySet")
+
+  private def AutoSetSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
     ctx.requiredModule(s"scala.collection.AutoCollections.AutoSet.$sem"))
 
 }

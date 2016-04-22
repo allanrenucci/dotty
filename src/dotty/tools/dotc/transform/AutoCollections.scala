@@ -1,11 +1,14 @@
 package dotty.tools.dotc.transform
 
+import dotty.tools.dotc.ast.Trees._
 import dotty.tools.dotc.ast.tpd
+import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Decorators.StringDecorator
 import dotty.tools.dotc.core.Names.Name
 import dotty.tools.dotc.core.StdNames._
 import dotty.tools.dotc.core.Symbols.Symbol
+import dotty.tools.dotc.core.TypeErasure
 import dotty.tools.dotc.core.Types.{TermRef, Type}
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
 
@@ -19,15 +22,16 @@ import scala.collection.{immutable, mutable}
   * - AutoSeq
   *   - [[mutable.ListBuffer]] if `head` and `tail` are the only operations
   *   - [[immutable.Queue]] if `:+` and `+:` are used
-  *   - [[Array]] if operations are by index accesses (e.g. `apply`), unless elements are [[Char]] then use [[String]]
+  *   - [[mutable.WrappedArray]] if operations are by index accesses (e.g. `apply`),
+  *      unless elements are [[Char]] then use [[immutable.WrappedString]]
   *   - [[immutable.Range]] if all elements are numbers with a constant delta
   *   - [[immutable.Vector]] otherwise
   *
   * - AutoMap
   *   - [[immutable.HashMap]] if elements are added
   *   - If no element are added
-  *     - [[mutable.AnyRefMap]] if the type parameters does not include primitives
-  *     - [[immutable.LongMap]] if the keys' type is [[Long]]
+  *     - [[mutable.AnyRefMap]] if keys' type is subtype of [[AnyRef]]
+  *     - [[immutable.LongMap]] if keys' type is [[Long]]
   *     - [[mutable.HashMap]] otherwise
   *   // We can consider adding an option of creating a sortedMap
   *   // in this case, if someone actually uses operations that reveal sorting
@@ -39,7 +43,7 @@ import scala.collection.{immutable, mutable}
   * Mutable
   *
   * - AutoSeq
-  *   - [[Array]] if operations are by index accesses (e.g. `apply`)
+  *   - [[mutable.WrappedArray]] if operations are by index accesses (e.g. `apply`)
   *   - otherwise:
   *     - [[mutable.UnrolledBuffer]] if type is known
   *     - [[mutable.ListBuffer]] otherwise
@@ -70,11 +74,36 @@ class AutoCollections extends MiniPhaseTransform {
 
     import Methods._
 
-    def appliedTo(impl: Symbol, tpParams: List[Type] = collection.tpParams, args: List[Tree] = collection.elems) = {
-      ref(impl)
+    /** Default collection builder
+      *
+      * @return a tree of the form `module.apply[T](elems)`
+      */
+    def buildCollection(collection: AutoCollection)
+                       (module: Symbol,
+                        tpParams: List[Type] = collection.tpParams,
+                        args: List[Tree] = collection.elems) = {
+      ref(module)
         .select(nme.apply)
         .appliedToTypes(tpParams)
         .appliedToArgs(args)
+    }
+
+    def classTag(tpe: Type) = {
+      val classTagModule = ctx.requiredModule("scala.reflect.ClassTag")
+      ref(classTagModule)
+        .select(nme.apply)
+        .appliedToType(tpe)
+        .appliedTo(clsOf(tpe))
+    }
+
+    def wrappedArray(seq: AutoSeq) = {
+      val tpe = seq.tpParam
+
+      ref(AutoCollectionModule)
+        .select("wrappedArray".toTermName)
+        .appliedToType(tpe)
+        .appliedToArgs(seq.elems)
+        .appliedTo(classTag(tpe))
     }
 
     val methods: Set[Name] = methodCalls(collection.symbol)
@@ -86,61 +115,104 @@ class AutoCollections extends MiniPhaseTransform {
 
       // if `head` and `tail` are the only operations
       case AutoSeq(Immutable) if methods.containsOnly(head, tail) =>
-        appliedTo(ListBuffer)
+        buildCollection(collection)(ListBufferModule)
 
       // if `:+` and `+:` are used
       case AutoSeq(Immutable) if methods.containsSome(`+:`, `:+`) =>
-        appliedTo(ImmutableQueue)
+        buildCollection(collection)(ImmutableQueueModule)
 
       // if operations are by index accesses
-      case AutoSeq(Immutable) if methods.containsSome(apply, isDefinedAt) =>
-        appliedTo(Array)
-        ??? // FIXME: Array(xs: T*)(implicit arg0: classTag[T])
+      case seq @ AutoSeq(Immutable) if methods.containsSome(apply, isDefinedAt) =>
+        if (seq.tpParam =:= ctx.definitions.CharType) {
+          ref(AutoCollectionModule)
+            .select("wrappedString".toTermName)
+            .appliedToArgs(seq.elems)
+        }
+        else if (!TypeErasure.isUnboundedGeneric(seq.tpParam)) wrappedArray(seq)
+        else buildCollection(seq)(VectorModule)
 
-      // TODO: Range if all elements are numbers with a constant delta
+
+      case seq @ AutoSeq(Immutable) if seq.tpParam =:= ctx.definitions.IntType =>
+        // Range if all elements are numbers with a constant delta
+        val rangeOption = {
+          val Typed(SeqLiteral(literals), _) = collection.elems.head
+
+          val MinRangeSize = 2
+
+          if (literals.size >= MinRangeSize && literals.forall(_.isInstanceOf[Literal])) {
+            val elems = literals.map {
+              case lit: Literal => lit.const.intValue
+            }
+
+            val steps = (elems.tail, elems).zipped.map(_ - _).distinct
+
+            steps match {
+              case List(step) =>
+                def lit(n: Int) = Literal(Constant(n))
+                val start = elems.head
+                val end = elems.last
+                // overload resolution
+                val inclusive = RangeModule.info.member("inclusive".toTermName)
+                  .suchThat(_.info.firstParamTypes.size == 3).symbol
+                val range = ref(RangeModule)
+                  .select(inclusive)
+                  .appliedTo(lit(start), lit(end), lit(step))
+                Some(range)
+
+              case _ => None
+            }
+          } else None
+        }
+
+        rangeOption.getOrElse {
+          buildCollection(collection)(VectorModule)
+        }
 
       // default
       case AutoSeq(Immutable) =>
-        appliedTo(Vector)
+        buildCollection(collection)(VectorModule)
 
       // if elements are added
       case AutoMap(Immutable) if methods.containsSome(plus, `++`) =>
-        appliedTo(ImmutableHashMap)
+        buildCollection(collection)(ImmutableHashMapModule)
 
-      // TODO: AnyRefMap if the type parameters does not include primitives
+      // if keys' type is subtype of `AnyReF`
+      case map @ AutoMap(Immutable) if map.keysTpe <:< ctx.definitions.AnyRefType =>
+        buildCollection(map)(AnyRefMapModule)
 
-      //  if the keys' type is Long
+      //  if keys' type is Long
       case map @ AutoMap(Immutable) if map.keysTpe =:= ctx.definitions.LongType =>
-        appliedTo(LongMap, map.valuesTpe :: Nil)
+        buildCollection(map)(LongMapModule, map.valuesTpe :: Nil)
 
       // default
-      case map @ AutoMap(Immutable) =>
-        appliedTo(MutableHashMap)
+      case AutoMap(Immutable) =>
+        buildCollection(collection)(MutableHashMapModule)
 
       // default
       case AutoSet(Immutable) =>
-        appliedTo(ImmutableHashSet)
+        buildCollection(collection)(ImmutableHashSetModule)
 
 
       // ------------ Mutable ------------
 
       // if operations are by index accesses
-      case AutoSeq(Mutable) if methods.containsSome(apply, isDefinedAt, update) =>
-        appliedTo(Array)
-        ??? // FIXME: Array(xs: T*)(implicit arg0: classTag[T])
+      case seq @ AutoSeq(Mutable) if methods.containsSome(apply, isDefinedAt, update) =>
+        wrappedArray(seq)
 
-      // TODO: UnrolledBuffer(xs: T*)(implicit arg0: classTag[T]) if type is known
+      // if type is known
+      case seq @ AutoSeq(Mutable) if !TypeErasure.isUnboundedGeneric(seq.tpParam) =>
+        buildCollection(seq)(UnrolledBufferModule).appliedTo(classTag(seq.tpParam))
 
       // default
       case AutoSeq(Mutable) =>
-        appliedTo(ListBuffer)
+        buildCollection(collection)(ListBufferModule)
 
       case AutoMap(Mutable) =>
-        appliedTo(MutableHashMap)
+        buildCollection(collection)(MutableHashMapModule)
 
       // default
       case AutoSet(Mutable) =>
-        appliedTo(MutableHashSet)
+        buildCollection(collection)(MutableHashSetModule)
 
 
       // ------------ Lazy ------------
@@ -211,35 +283,33 @@ object AutoCollections {
 
   object AutoSet { def unapply(set: AutoSet) = Some(set.semantic) }
 
-  def IterableClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Iterable")
+  private def immutableCollectionModule(collection: String)(implicit ctx: Context) =
+    ctx.requiredModule(s"scala.collection.immutable.$collection")
+
+  private def mutableCollectionModule(collection: String)(implicit ctx: Context) =
+    ctx.requiredModule(s"scala.collection.mutable.$collection")
+
+  private def AutoCollectionModule(implicit ctx: Context) = ctx.requiredModule("scala.collection.AutoCollections")
 
   // ------------ Seq ------------
-  def SeqClass(implicit ctx: Context)        = ctx.requiredClass("scala.collection.Seq")
-  def MutableSeqClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.mutable.Seq")
-
-
-  def ListBuffer(implicit ctx: Context)     = ctx.requiredModule("scala.collection.mutable.ListBuffer")
-  def ImmutableQueue(implicit ctx: Context) = ctx.requiredModule("scala.collection.immutable.Queue")
-  def Array(implicit ctx: Context)          = ctx.requiredModule("scala.Array")
-  def Vector(implicit ctx: Context)         = ctx.requiredModule("scala.collection.immutable.Vector")
-  def MutableQueue(implicit ctx: Context)   = ctx.requiredModule("scala.collection.mutable.Queue")
+  private def ListBufferModule(implicit ctx: Context)     = mutableCollectionModule("ListBuffer")
+  private def UnrolledBufferModule(implicit ctx: Context) = mutableCollectionModule("UnrolledBuffer")
+  private def ImmutableQueueModule(implicit ctx: Context) = immutableCollectionModule("Queue")
+  private def VectorModule(implicit ctx: Context)         = immutableCollectionModule("Vector")
+  private def RangeModule(implicit ctx: Context)          = immutableCollectionModule("Range")
 
   // ------------ Map ------------
-  def MapClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Map")
-
-  def ImmutableHashMap(implicit ctx: Context) = ctx.requiredModule("scala.collection.immutable.HashMap")
-  def MutableHashMap(implicit ctx: Context)   = ctx.requiredModule("scala.collection.mutable.HashMap")
-  def AnyRefMap(implicit ctx: Context)        = ctx.requiredModule("scala.collection.mutable.AnyRefMap")
-  def LongMap(implicit ctx: Context)          = ctx.requiredModule("scala.collection.immutable.LongMap")
+  private def MutableHashMapModule(implicit ctx: Context)   = mutableCollectionModule("HashMap")
+  private def AnyRefMapModule(implicit ctx: Context)        = mutableCollectionModule("AnyRefMap")
+  private def ImmutableHashMapModule(implicit ctx: Context) = immutableCollectionModule("HashMap")
+  private def LongMapModule(implicit ctx: Context)          = immutableCollectionModule("LongMap")
 
   // ------------ Set ------------
-  def SetClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Set")
-
-  def ImmutableHashSet(implicit ctx: Context) = ctx.requiredModule("scala.collection.immutable.HashSet")
-  def MutableHashSet(implicit ctx: Context)   = ctx.requiredModule("scala.collection.mutable.HashSet")
+  private def MutableHashSetModule(implicit ctx: Context)   = mutableCollectionModule("HashSet")
+  private def ImmutableHashSetModule(implicit ctx: Context) = immutableCollectionModule("HashSet")
 
 
-  object Methods {
+  private object Methods {
     val apply       = "apply".toTermName
     val isDefinedAt = "isDefinedAt".toTermName
     val head        = "head".toTermName
