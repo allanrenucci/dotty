@@ -843,6 +843,26 @@ object tpd extends Trees.Instance[Type] with TypedTreeInfo {
     }
   }
 
+  /** A tree that represents the class of the erasure of type `tp`. */
+  def clsOf(tp: Type)(implicit ctx: Context): Tree = {
+    def TYPE(module: TermSymbol) = ref(module).select(nme.TYPE_)
+    defn.scalaClassName(tp) match {
+      case tpnme.Boolean => TYPE(defn.BoxedBooleanModule)
+      case tpnme.Byte => TYPE(defn.BoxedByteModule)
+      case tpnme.Short => TYPE(defn.BoxedShortModule)
+      case tpnme.Char => TYPE(defn.BoxedCharModule)
+      case tpnme.Int => TYPE(defn.BoxedIntModule)
+      case tpnme.Long => TYPE(defn.BoxedLongModule)
+      case tpnme.Float => TYPE(defn.BoxedFloatModule)
+      case tpnme.Double => TYPE(defn.BoxedDoubleModule)
+      case tpnme.Unit => TYPE(defn.BoxedUnitModule)
+      case _ =>
+        if (ctx.erasedTypes || !tp.derivesFrom(defn.ArrayClass))
+          Literal(Constant(TypeErasure.erasure(tp)))
+        else Literal(Constant(tp))
+    }
+  }
+
   def applyOverloaded(receiver: Tree, method: TermName, args: List[Tree], targs: List[Type], expectedType: Type, isAnnotConstructor: Boolean = false)(implicit ctx: Context): Tree = {
     val typer = ctx.typer
     val proto = new FunProtoTyped(args, expectedType, typer)
