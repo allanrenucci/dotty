@@ -47,8 +47,8 @@ class PreAutoCollections extends MiniPhaseTransform {
     val semanticSym = sem.tpe.widen.classSymbol.companionModule
 
     if (tree.symbol == AutoSeqApply) {
-      val tpParams = tree.tpe.baseArgInfos(SeqClass)
       val semantic = AutoSeqSemantics.apply(semanticSym)
+      val tpParams = tree.tpe.baseArgInfos(IterableClass)
 
       val impl = semantic match {
         case Immutable => ImmutableSeqType
@@ -63,8 +63,15 @@ class PreAutoCollections extends MiniPhaseTransform {
     }
 
     else if (tree.symbol == AutoMapApply) {
-      val tpParams = tree.tpe.baseArgInfos(MapClass)
       val semantic = AutoMapSemantics.apply(semanticSym)
+      val tpParams = semantic match {
+        case Lazy =>
+          val List(tuple) = tree.tpe.baseArgInfos(IterableClass)
+          val tuple2 = ctx.definitions.TupleType(2).classSymbol
+          tuple.baseArgInfos(tuple2)
+        case _ =>
+          tree.tpe.baseArgInfos(MapClass)
+      }
 
       val impl = semantic match {
         case Immutable => ImmutableMapType
@@ -79,8 +86,8 @@ class PreAutoCollections extends MiniPhaseTransform {
     }
 
     else /* tree.symbol == AutoSetApply */ {
-      val tpParams = tree.tpe.baseArgInfos(SetClass)
       val semantic = AutoSetSemantics.apply(semanticSym)
+      val tpParams = tree.tpe.baseArgInfos(IterableClass)
 
       val impl = semantic match {
         case Immutable => ImmutableSetType
@@ -112,6 +119,7 @@ object PreAutoCollections {
   )
 
 
+  private def IterableClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Iterable")
 
   // ------------ Seq ------------
   private def SeqClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Seq")

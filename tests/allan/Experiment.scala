@@ -2,9 +2,7 @@ import scala.collection.AutoCollections._
 
 object Experiment {
   def main(args: Array[String]): Unit = {
-
     // ------------ Immutable ------------
-
     val seq1 = AutoSeq("a", "b") // ListBuffer
     val a = seq1.head
     val b = seq1.tail
@@ -13,7 +11,7 @@ object Experiment {
     val c = 1.0 +: seq2
     val d = seq2 :+ 1.0
 
-    val seq3 = AutoSeq[Long](1L)(AutoSeq.Immutable) // Array
+    val seq3 = AutoSeq[Long](1L)(AutoSeq.Immutable) // WrappedArray
     val e = seq3(1)
     val f = seq3.isDefinedAt(3)
 
@@ -35,7 +33,7 @@ object Experiment {
 
 
     // ------------ Mutable ------------
-    val seq6 = AutoSeq(1)(AutoSeq.Mutable) // Array
+    val seq6 = AutoSeq(1)(AutoSeq.Mutable) // WrappedArray
     seq6(3) = 2
 
     val seq7 = AutoSeq("Hello")(AutoSeq.Mutable) // mutable.UnrolledBuffer

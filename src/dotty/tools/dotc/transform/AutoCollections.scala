@@ -4,12 +4,12 @@ import dotty.tools.dotc.ast.Trees._
 import dotty.tools.dotc.ast.tpd
 import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.core.Contexts.Context
-import dotty.tools.dotc.core.Decorators.StringDecorator
+import dotty.tools.dotc.core.Decorators.{StringDecorator, sourcePos}
 import dotty.tools.dotc.core.Names.Name
 import dotty.tools.dotc.core.StdNames._
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.TypeErasure
-import dotty.tools.dotc.core.Types.{TermRef, Type}
+import dotty.tools.dotc.core.Types.Type
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
 
 import scala.collection.{immutable, mutable}
@@ -67,7 +67,15 @@ class AutoCollections extends MiniPhaseTransform {
   override def transformBlock(tree: Block)(implicit ctx: Context, info: TransformerInfo): Tree = {
     val autoCollections = ctx.preAutoCollectionPhase.asInstanceOf[PreAutoCollections].instances
 
-    autoCollections.get(tree).fold(tree: Tree)(pickImplementation)
+    autoCollections.get(tree).fold(tree: Tree) { collection =>
+      val impl = pickImplementation(collection)
+
+      if (impl.isEmpty) {
+        ctx.error("Lazy collections are not supported", tree.pos)
+        tree
+      }
+      else impl
+    }
   }
 
   private def pickImplementation(collection: AutoCollection)(implicit ctx: Context): Tree = {
@@ -100,7 +108,7 @@ class AutoCollections extends MiniPhaseTransform {
       val tpe = seq.tpParam
 
       ref(AutoCollectionModule)
-        .select("wrappedArray".toTermName)
+        .select(Methods.wrappedArray)
         .appliedToType(tpe)
         .appliedToArgs(seq.elems)
         .appliedTo(classTag(tpe))
@@ -125,7 +133,7 @@ class AutoCollections extends MiniPhaseTransform {
       case seq @ AutoSeq(Immutable) if methods.containsSome(apply, isDefinedAt) =>
         if (seq.tpParam =:= ctx.definitions.CharType) {
           ref(AutoCollectionModule)
-            .select("wrappedString".toTermName)
+            .select(wrappedString)
             .appliedToArgs(seq.elems)
         }
         else if (!TypeErasure.isUnboundedGeneric(seq.tpParam)) wrappedArray(seq)
@@ -152,7 +160,7 @@ class AutoCollections extends MiniPhaseTransform {
                 val start = elems.head
                 val end = elems.last
                 // overload resolution
-                val inclusive = RangeModule.info.member("inclusive".toTermName)
+                val inclusive = RangeModule.info.member(Methods.inclusive)
                   .suchThat(_.info.firstParamTypes.size == 3).symbol
                 val range = ref(RangeModule)
                   .select(inclusive)
@@ -216,9 +224,9 @@ class AutoCollections extends MiniPhaseTransform {
 
 
       // ------------ Lazy ------------
-      case AutoSeq(Lazy) => ???
-      case AutoMap(Lazy) => ???
-      case AutoSet(Lazy) => ???
+      case AutoSeq(Lazy) |  AutoMap(Lazy) | AutoSet(Lazy) =>
+        genericEmptyTree
+
     }
   }
 
@@ -226,7 +234,7 @@ class AutoCollections extends MiniPhaseTransform {
     val methods = ctx.buildCallGraphPhase.asInstanceOf[BuildCallGraph].methods
 
     methods
-      .filter(_.call.asInstanceOf[TermRef].prefix.classSymbol == sym)
+      .filter(_.call.normalizedPrefix.classSymbol == sym)
       .map(_.call.termSymbol)
   }
 
@@ -319,6 +327,10 @@ object AutoCollections {
     val plus        = "+".toTermName.encode
     val `++`        = "++".toTermName.encode
     val update      = "update".toTermName
+
+    val wrappedArray  = "wrappedArray".toTermName
+    val wrappedString = "wrappedString".toTermName
+    val inclusive     = "inclusive".toTermName
   }
 
   private implicit class SetOps[T](val set: Set[T]) extends AnyVal {
