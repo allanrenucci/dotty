@@ -8,10 +8,10 @@ class AllanTests extends CompilerTest {
 
   override val defaultOutputDir: String = "./out/"
 
-  val testsDir = "./tests/"
-  val allandir = testsDir + "allan/"
-  val runDir   = testsDir + "run/"
-  val posDir   = testsDir + "pos/"
+  val testsDir           = "./tests/"
+  val autoCollectionsDir = testsDir + "autocollections/"
+//  val runDir   = testsDir + "run/"
+//  val posDir   = testsDir + "pos/"
 
   val noCheckOptions = List(
     //    "-verbose",
@@ -31,5 +31,5 @@ class AllanTests extends CompilerTest {
     "-Ycheck:auto"
   )
 
-  @Test def allan = compileFile(allandir, "Experiment")
+  @Test def experiment = compileFile(autoCollectionsDir, "Experiment")
 }
