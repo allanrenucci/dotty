@@ -21,7 +21,7 @@ import scala.collection.{immutable, mutable}
   *
   * - AutoSeq
   *   - [[mutable.ListBuffer]] if `head` and `tail` are the only operations
-  *   - [[immutable.Queue]] if `:+` and `+:` are used
+  *   - [[immutable.Queue]] if `:+` or `+:` are used
   *   - [[mutable.WrappedArray]] if operations are by index accesses (e.g. `apply`),
   *      unless elements are [[Char]] then use [[immutable.WrappedString]]
   *   - [[immutable.Range]] if all elements are numbers with a constant delta
@@ -69,6 +69,15 @@ class AutoCollections extends MiniPhaseTransform {
 
     autoCollections.get(tree).fold(tree: Tree) { collection =>
       val impl = pickImplementation(collection)
+
+      val methods: Set[Name] = methodCalls(collection.symbol)
+        .filterNot(_.isConstructor)
+        .map(_.name)
+
+      println("-" * 60)
+      println(s"Methods called: ${methods.mkString(", ")}")
+      println(impl.tpe.classSymbol)
+      println("-" * 60)
 
       if (impl.isEmpty) {
         ctx.error("Lazy collections are not supported", tree.pos)
@@ -125,7 +134,7 @@ class AutoCollections extends MiniPhaseTransform {
       case AutoSeq(Immutable) if methods.containsOnly(head, tail) =>
         buildCollection(collection)(ListBufferModule)
 
-      // if `:+` and `+:` are used
+      // if `:+` or `+:` are used
       case AutoSeq(Immutable) if methods.containsSome(`+:`, `:+`) =>
         buildCollection(collection)(ImmutableQueueModule)
 
@@ -323,7 +332,7 @@ object AutoCollections {
     val head        = "head".toTermName
     val tail        = "tail".toTermName
     val `+:`        = "+:".toTermName.encode
-    val `:+`        = "+:".toTermName.encode
+    val `:+`        = ":+".toTermName.encode
     val plus        = "+".toTermName.encode
     val `++`        = "++".toTermName.encode
     val update      = "update".toTermName

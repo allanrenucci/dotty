@@ -10,8 +10,8 @@ class AllanTests extends CompilerTest {
 
   val testsDir           = "./tests/"
   val autoCollectionsDir = testsDir + "autocollections/"
-//  val runDir   = testsDir + "run/"
-//  val posDir   = testsDir + "pos/"
+  //val runDir   = testsDir + "run/"
+  //val posDir   = testsDir + "pos/"
 
   val noCheckOptions = List(
     //    "-verbose",
@@ -27,9 +27,14 @@ class AllanTests extends CompilerTest {
     "-Yno-double-bindings",
     "-d",
     defaultOutputDir,
-    "-Xprint:preauto,auto",
+    //"-Xprint:preauto,auto",
     "-Ycheck:auto"
   )
 
-  @Test def experiment = compileFile(autoCollectionsDir, "Experiment")
+  //@Test def experiment = compileFile(autoCollectionsDir, "Experiment")
+  //@Test def mergeSort  = compileFile(autoCollectionsDir, "MergeSort")
+  //@Test def quickSort  = compileFile(autoCollectionsDir, "QuickSort") // WrappedArray
+  //@Test def bfs  = compileFile(autoCollectionsDir, "BFS") // Queue
+  //@Test def dfs  = compileFile(autoCollectionsDir, "BFS") // Queue
+  @Test def pageRank = compileFile(autoCollectionsDir, "PageRank")
 }

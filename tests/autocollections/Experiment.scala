@@ -1,4 +1,4 @@
-import collection.AutoCollections._
+import scala.collection.AutoCollections._
 
 object Experiment {
   def main(args: Array[String]): Unit = {

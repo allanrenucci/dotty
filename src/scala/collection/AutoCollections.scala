@@ -8,7 +8,6 @@ object AutoCollections {
   // ------------ Seq ------------
 
   object AutoSeq {
-    //def apply[T](xs: T*): Seq[T] = ???
 
     sealed trait Semantic { type Ret[T] }
     object Immutable extends Semantic { type Ret[T] = Seq[T] }
@@ -41,7 +40,6 @@ object AutoCollections {
   // ------------ Map ------------
 
   object AutoMap {
-    //def apply[A, B](xs: (A, B)*): Map[A, B] = ???
 
     sealed trait Semantic { type Ret[A, B] }
     object Immutable extends Semantic { type Ret[A, B] = Map[A, B] }
@@ -75,7 +73,6 @@ object AutoCollections {
   // ------------ Set ------------
 
   object AutoSet {
-    //def apply[T](xs: T*): Set[T] = ???
 
     sealed trait Semantic { type Ret[T] }
     object Immutable extends Semantic { type Ret[T] = Set[T] }
