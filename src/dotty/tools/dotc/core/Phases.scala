@@ -242,6 +242,7 @@ object Phases {
     private val genBCodeCache = new PhaseCache(classOf[GenBCode])
     private val specializeCache = new PhaseCache(classOf[TypeSpecializer])
     private val summariesCahce = new PhaseCache(classOf[CollectSummaries])
+    private val buildCallGraphCache = new PhaseCache(classOf[BuildCallGraph])
     private val outerSpecCahce = new PhaseCache(classOf[OuterSpecializer])
     private val preAutoCollectionCache = new PhaseCache(classOf[PreAutoCollections])
 
@@ -258,6 +259,7 @@ object Phases {
     def genBCodePhase = genBCodeCache.phase
     def specializePhase = specializeCache.phase
     def summariesPhase = summariesCahce.phase
+    def buildCallGraphPhase = buildCallGraphCache.phase
     def outerSpecPhase = outerSpecCahce.phase
     def preAutoCollectionPhase = preAutoCollectionCache.phase
 

@@ -240,7 +240,7 @@ class AutoCollections extends MiniPhaseTransform {
   }
 
   private def methodCalls(sym: Symbol)(implicit ctx: Context): Set[Symbol] = {
-    val methods = ctx.buildCallGraphPhase.asInstanceOf[BuildCallGraph].methods
+    val methods = ctx.buildCallGraphPhase.asInstanceOf[BuildCallGraph].getReachableMethods
 
     methods
       .filter(_.call.normalizedPrefix.classSymbol == sym)

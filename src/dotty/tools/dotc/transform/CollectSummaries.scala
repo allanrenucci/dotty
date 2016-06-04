@@ -1314,7 +1314,7 @@ class BuildCallGraph extends Phase {
 
   var runOnce = true
   def run(implicit ctx: Context): Unit = {
-    if (runOnce && ctx.settings.lto.value.nonEmpty) {
+    if (runOnce /*&& ctx.settings.lto.value.nonEmpty*/) {
       val specLimit = 15
       //println(s"\n\t\t\tOriginal analisys")
       //val g1 = buildCallGraph(AnalyseOrig, specLimit)

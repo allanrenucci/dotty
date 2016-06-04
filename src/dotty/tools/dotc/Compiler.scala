@@ -45,7 +45,7 @@ class Compiler {
       List(new PreAutoCollections),
       List(new CollectSummaries),
       List(new BuildCallGraph),
-      List(new AutoCollection),
+      List(new AutoCollections)
       /*List(new AnalyzeClosures),
       List(new FirstTransform,
            new CheckReentrant),
