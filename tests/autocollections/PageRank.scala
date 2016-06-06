@@ -1,4 +1,4 @@
-//import scala.collection.AutoCollections._
+import scala.collection.AutoCollections._
 
 object PageRank {
 
@@ -45,8 +45,7 @@ object PageRank {
 
   /** Compute the set of pages that link to each page */
   private def incomingLinks[T](pages: Map[T, Set[T]]): Map[T, Set[T]] = {
-    //val links = pages.mapValues(_ => AutoSet[T]()(AutoSet.Mutable)).map(identity)
-    val links = pages.mapValues(_ => collection.mutable.Set.empty[T]).map(identity)
+    val links = pages.map(_._1 -> AutoSet[T]()(AutoSet.Mutable))
 
     for {
       (id, ls) <- pages
@@ -64,7 +63,7 @@ object PageRank {
     val C = 3L
     val D = 4L
 
-    val pages: Map[Long, Set[Long]] = AutoMap( // FIXME: AutoMap
+    val pages = AutoMap(
       A -> Set(D),
       B -> Set(A, C, D),
       C -> Set(B, D),

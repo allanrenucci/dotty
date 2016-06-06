@@ -42,7 +42,7 @@ object AutoCollections {
   object AutoMap {
 
     sealed trait Semantic { type Ret[A, B] }
-    object Immutable extends Semantic { type Ret[A, B] = Map[A, B] }
+    object Immutable extends Semantic { type Ret[A, B] = immutable.Map[A, B] }
     object Mutable   extends Semantic { type Ret[A, B] = mutable.Map[A, B] }
     object Lazy      extends Semantic { type Ret[A, B] = Iterable[(A, B)] }
 
@@ -51,11 +51,11 @@ object AutoCollections {
     def apply[A, B](xs: (A, B)*)(implicit sem: Semantic): sem.Ret[A, B] = ???
   }
 
-  class ImmutableMap[A, B] extends Map[A, B] {
-    override def get(key: A): Option[B]              = ???
-    override def +[B1 >: B](kv: (A, B1)): Map[A, B1] = ???
-    override def iterator: Iterator[(A, B)]          = ???
-    override def -(key: A): Map[A, B]                = ???
+  class ImmutableMap[A, B] extends immutable.Map[A, B] {
+    override def +[B1 >: B](kv: (A, B1)): immutable.Map[A, B1] = ???
+    override def get(key: A): Option[B]                        = ???
+    override def iterator: Iterator[(A, B)]                    = ???
+    override def -(key: A): immutable.Map[A, B]                = ???
   }
 
   class MutableMap[A, B] extends mutable.Map[A, B] {
@@ -75,7 +75,7 @@ object AutoCollections {
   object AutoSet {
 
     sealed trait Semantic { type Ret[T] }
-    object Immutable extends Semantic { type Ret[T] = Set[T] }
+    object Immutable extends Semantic { type Ret[T] = immutable.Set[T] }
     object Mutable   extends Semantic { type Ret[T] = mutable.Set[T] }
     object Lazy      extends Semantic { type Ret[T] = Iterable[T] }
 
@@ -84,11 +84,11 @@ object AutoCollections {
     def apply[T](xs: T*)(implicit sem: Semantic): sem.Ret[T] = ???
   }
 
-  class ImmutableSet[T] extends Set[T] {
-    override def contains(elem: T): Boolean  = ???
-    override def +(elem: T): Set[T]          = ???
-    override def -(elem: T): Set[T]          = ???
-    override def iterator: scala.Iterator[T] = ???
+  class ImmutableSet[T] extends immutable.Set[T] {
+    override def contains(elem: T): Boolean   = ???
+    override def +(elem: T): immutable.Set[T] = ???
+    override def -(elem: T): immutable.Set[T] = ???
+    override def iterator: scala.Iterator[T]  = ???
   }
 
   class MutableSet[T] extends mutable.Set[T] {
