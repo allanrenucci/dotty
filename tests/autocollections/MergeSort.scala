@@ -13,28 +13,26 @@ object MergeSort {
   }
 
   private def merge(seq1: Seq[Int], seq2: Seq[Int]): Seq[Int] = {
-    var i1, i2 = 0
+    var result = AutoSeq[Int]()
+    var left   = seq1
+    var right  = seq2
 
-    var result = Seq.empty[Int]
-
-    while (i1 < seq1.length && i2 < seq2.length) {
-      if (seq1(i1) < seq2(i2)) {
-        result :+= seq1(i1)
-        i1 += 1
+    while (left.nonEmpty && right.nonEmpty) {
+      if (left.head < right.head) {
+        result = result :+ left.head
+        left = left.tail
       } else {
-        result :+= seq2(i2)
-        i2 += 1
+        result = result :+ right.head
+        right = right.tail
       }
     }
 
-    while (i1 < seq1.length) {
-      result :+= seq1(i1)
-      i1 += 1
+    left.foreach { e =>
+      result = result :+ e
     }
 
-    while (i2 < seq2.length) {
-      result :+= seq2(i2)
-      i2 += 1
+    right.foreach { e =>
+      result = result :+ e
     }
 
     result
