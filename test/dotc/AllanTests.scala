@@ -32,10 +32,10 @@ class AllanTests extends CompilerTest {
     "-Ycheck:preauto,auto"
   )
 
-  //@Test def experiment = compileFile(autoCollectionsDir, "Experiment")
+  @Test def experiment = compileFile(autoCollectionsDir, "Experiment")
   //@Test def mergeSort  = compileFile(autoCollectionsDir, "MergeSort") // Queue
   //@Test def quickSort  = compileFile(autoCollectionsDir, "QuickSort") // WrappedArray
   //@Test def bfs  = compileFile(autoCollectionsDir, "BFS") // Queue
   //@Test def dfs  = compileFile(autoCollectionsDir, "BFS") // Queue
-  @Test def pageRank = compileFile(autoCollectionsDir, "PageRank")
+  //@Test def pageRank = compileFile(autoCollectionsDir, "PageRank")
 }

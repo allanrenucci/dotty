@@ -1,4 +1,4 @@
-package dotty.tools.dotc.transform
+package dotty.tools.dotc.transform.autocollections
 
 import dotty.tools.dotc.ast.Trees._
 import dotty.tools.dotc.ast.tpd
@@ -7,8 +7,8 @@ import dotty.tools.dotc.core.Decorators.StringDecorator
 import dotty.tools.dotc.core.StdNames._
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.MethodicType
-import dotty.tools.dotc.transform.AutoCollections._
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
+import dotty.tools.dotc.transform.autocollections.AutoCollections._
 
 /** A transformation which substitutes an auto collection constructor by a
   * dummy implementation in order to track the methods called on the collection

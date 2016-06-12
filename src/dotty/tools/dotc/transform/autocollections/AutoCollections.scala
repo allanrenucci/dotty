@@ -1,4 +1,4 @@
-package dotty.tools.dotc.transform
+package dotty.tools.dotc.transform.autocollections
 
 import dotty.tools.dotc.ast.Trees._
 import dotty.tools.dotc.ast.tpd
@@ -11,6 +11,7 @@ import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.TypeErasure
 import dotty.tools.dotc.core.Types.Type
 import dotty.tools.dotc.transform.TreeTransforms.{MiniPhaseTransform, TransformerInfo}
+import dotty.tools.dotc.transform.BuildCallGraph
 
 import scala.collection.{immutable, mutable}
 
@@ -63,6 +64,7 @@ class AutoCollections extends MiniPhaseTransform {
   import tpd._
 
   override def phaseName: String = "autocollections"
+
 
   override def transformBlock(tree: Block)(implicit ctx: Context, info: TransformerInfo): Tree = {
     val autoCollections = ctx.preAutoCollectionPhase.asInstanceOf[PreAutoCollections].instances
