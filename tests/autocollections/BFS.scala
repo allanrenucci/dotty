@@ -1,4 +1,4 @@
-import scala.collection.AutoCollections.AutoSeq
+import scala.collection.AutoCollections._
 
 object BFS {
   sealed trait Tree

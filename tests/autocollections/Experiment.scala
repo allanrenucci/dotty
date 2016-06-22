@@ -7,11 +7,11 @@ object Experiment {
     val a = seq1.head
     val b = seq1.tail
 
-    val seq2 = AutoSeq[Double]()(AutoSeq.Immutable) // immutable.Queue
+    val seq2 = AutoSeq[Double]()(Immutable) // immutable.Queue
     val c = 1.0 +: seq2
     val d = seq2 :+ 1.0
 
-    val seq3 = AutoSeq[Long](1L)(AutoSeq.Immutable) // WrappedArray
+    val seq3 = AutoSeq[Long](1L)(Immutable) // WrappedArray
     val e = seq3(1)
     val f = seq3.isDefinedAt(3)
 
@@ -25,22 +25,22 @@ object Experiment {
     val h = map1 + (3 -> 4)
     val i = map1 ++ Seq(3 -> 4, 2 -> 4)
 
-    val map2 = AutoMap[Long, Int](1L -> 2)(AutoMap.Immutable) // LongMap
+    val map2 = AutoMap[Long, Int](1L -> 2)(Immutable) // LongMap
 
-    val map3 = AutoMap[String, Int]()(AutoMap.Immutable) // mutable.AnyRefMap
+    val map3 = AutoMap[String, Int]()(Immutable) // mutable.AnyRefMap
 
-    val set1 = AutoSet[String]("A")(AutoSet.Immutable) // immutable.HashSet
+    val set1 = AutoSet[String]("A")(Immutable) // immutable.HashSet
 
 
     // ------------ Mutable ------------
-    val seq6 = AutoSeq(1)(AutoSeq.Mutable) // WrappedArray
+    val seq6 = AutoSeq(1)(Mutable) // WrappedArray
     seq6(3) = 2
 
-    val seq7 = AutoSeq("Hello")(AutoSeq.Mutable) // mutable.UnrolledBuffer
+    val seq7 = AutoSeq("Hello")(Mutable) // mutable.UnrolledBuffer
 
-    val map4 = AutoMap[Int, Int]()(AutoMap.Mutable) // mutable.HashMap
+    val map4 = AutoMap[Int, Int]()(Mutable) // mutable.HashMap
 
-    val set2 = AutoSet[String]("A")(AutoSet.Mutable) // mutable.HashSet
+    val set2 = AutoSet[String]("A")(Mutable) // mutable.HashSet
 
     ()
   }

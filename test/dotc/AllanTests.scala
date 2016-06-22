@@ -29,11 +29,11 @@ class AllanTests extends CompilerTest {
     defaultOutputDir,
     //"-Xprint:preauto,auto",
     //"-Ycheck:auto"
-    "-Ycheck:preauto, auto"
+    "-Ycheck:preauto,auto"
   )
 
   //@Test def experiment = compileFile(autoCollectionsDir, "Experiment")
-  //@Test def mergeSort  = compileFile(autoCollectionsDir, "MergeSort")
+  //@Test def mergeSort  = compileFile(autoCollectionsDir, "MergeSort") // Queue
   //@Test def quickSort  = compileFile(autoCollectionsDir, "QuickSort") // WrappedArray
   //@Test def bfs  = compileFile(autoCollectionsDir, "BFS") // Queue
   //@Test def dfs  = compileFile(autoCollectionsDir, "BFS") // Queue

@@ -45,9 +45,9 @@ class PreAutoCollections extends MiniPhaseTransform {
   private def transform(tree: Apply)(implicit ctx: Context): Block = {
     val Apply(Apply(_, elems), List(sem)) = tree
     val semanticSym = sem.tpe.widen.classSymbol.companionModule
+    val semantic = AutoCollectionSemantics.apply(semanticSym)
 
     if (tree.symbol == AutoSeqApply) {
-      val semantic = AutoSeqSemantics.apply(semanticSym)
       val tpParams = tree.tpe.baseArgInfos(IterableClass)
 
       val impl = semantic match {
@@ -63,7 +63,6 @@ class PreAutoCollections extends MiniPhaseTransform {
     }
 
     else if (tree.symbol == AutoMapApply) {
-      val semantic = AutoMapSemantics.apply(semanticSym)
       val tpParams = semantic match {
         case Lazy =>
           val List(tuple) = tree.tpe.baseArgInfos(IterableClass)
@@ -86,7 +85,6 @@ class PreAutoCollections extends MiniPhaseTransform {
     }
 
     else /* tree.symbol == AutoSetApply */ {
-      val semantic = AutoSetSemantics.apply(semanticSym)
       val tpParams = tree.tpe.baseArgInfos(IterableClass)
 
       val impl = semantic match {
@@ -112,12 +110,16 @@ object PreAutoCollections {
   private def autoCollectionType(collection: String)(implicit ctx: Context) =
     ctx.requiredClassRef(s"scala.collection.AutoCollections.$collection")
 
-  private def autoCollectionSemantics(semantic: Semantic => Symbol)(implicit ctx: Context) = Map(
-    semantic(Immutable) -> Immutable,
-    semantic(Mutable)   -> Mutable,
-    semantic(Lazy)      -> Lazy
-  )
+  private def AutoCollectionSemantics(implicit ctx: Context) = {
+    def semantic(sem: Semantic): Symbol =
+      ctx.requiredModule(s"scala.collection.AutoCollections.$sem")
 
+    Map(
+      semantic(Immutable) -> Immutable,
+      semantic(Mutable)   -> Mutable,
+      semantic(Lazy)      -> Lazy
+    )
+  }
 
   private def IterableClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Iterable")
 
@@ -130,9 +132,6 @@ object PreAutoCollections {
   private def MutableSeqType(implicit ctx: Context)   = autoCollectionType("MutableSeq")
   private def LazySeqType(implicit ctx: Context)      = autoCollectionType("LazySeq")
 
-  private def AutoSeqSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
-    ctx.requiredModule(s"scala.collection.AutoCollections.AutoSeq.$sem"))
-
 
   // ------------ Map ------------
   private def MapClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Map")
@@ -143,9 +142,6 @@ object PreAutoCollections {
   private def MutableMapType(implicit ctx: Context)   = autoCollectionType("MutableMap")
   private def LazyMapType(implicit ctx: Context)      = autoCollectionType("LazyMap")
 
-  private def AutoMapSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
-    ctx.requiredModule(s"scala.collection.AutoCollections.AutoMap.$sem"))
-
 
   // ------------ Set ------------
   private def SetClass(implicit ctx: Context) = ctx.requiredClass("scala.collection.Set")
@@ -155,8 +151,4 @@ object PreAutoCollections {
   private def ImmutableSetType(implicit ctx: Context) = autoCollectionType("ImmutableSet")
   private def MutableSetType(implicit ctx: Context)   = autoCollectionType("MutableSet")
   private def LazySetType(implicit ctx: Context)      = autoCollectionType("LazySet")
-
-  private def AutoSetSemantics(implicit ctx: Context) = autoCollectionSemantics(sem =>
-    ctx.requiredModule(s"scala.collection.AutoCollections.AutoSet.$sem"))
-
 }

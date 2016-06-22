@@ -2,6 +2,10 @@ import scala.collection.AutoCollections._
 
 object PageRank {
 
+  // We need to shadow Predef =(
+  type Map[K, V] = collection.Map[K, V]
+  type Set[T]    = collection.Set[T]
+
   type PageRank[T] = Map[T, Double]
 
   val MaxIteration  = 50
@@ -45,7 +49,7 @@ object PageRank {
 
   /** Compute the set of pages that link to each page */
   private def incomingLinks[T](pages: Map[T, Set[T]]): Map[T, Set[T]] = {
-    val links = pages.map(_._1 -> AutoSet[T]()(AutoSet.Mutable))
+    val links = pages.map(_._1 -> AutoSet[T]()(Mutable))
 
     for {
       (id, ls) <- pages

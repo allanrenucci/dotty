@@ -1,4 +1,4 @@
-import scala.collection.AutoCollections.AutoSeq
+import scala.collection.AutoCollections._
 import scala.collection.mutable
 
 object QuickSort {
@@ -39,7 +39,7 @@ object QuickSort {
   }
 
   def main(args: Array[String]): Unit = {
-    val seq = AutoSeq(4, 3, 1)(AutoSeq.Mutable)
+    val seq = AutoSeq(4, 3, 1)(Mutable)
     QuickSort(seq)
     println(seq)
   }
