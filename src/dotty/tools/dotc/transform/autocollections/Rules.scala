@@ -29,8 +29,7 @@ object Rules {
 
   }
 
-  /**
-    * A rule define a specific collection implementation and under which
+  /** A rule define a specific collection implementation and under which
     * conditions this implementation is optimal
     */
   trait Rule[T <: AutoCollection] {

@@ -18,7 +18,7 @@ object AutoCollections {
     //type Set[T]    = immutable.Set[T]
 
     // This is convenient as we can use mutable collections in place of
-    // mutable ones but the return type of our API doesn't conform to
+    // immutable ones but the return type of our API doesn't conform to
     // the Map and Set from Predef (i.e. immutable.Map and immutable.Set)
     type Map[K, V] = collection.Map[K, V]
     type Set[T]    = collection.Set[T]
