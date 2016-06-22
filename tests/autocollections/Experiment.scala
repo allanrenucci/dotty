@@ -3,7 +3,7 @@ import scala.collection.AutoCollections._
 object Experiment {
   def main(args: Array[String]): Unit = {
     // ------------ Immutable ------------
-    val seq1 = AutoSeq("a", "b") // ListBuffer
+    val seq1 = AutoSeq("a", "b") // List
     val a = seq1.head
     val b = seq1.tail
 
