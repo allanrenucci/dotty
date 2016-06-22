@@ -15,6 +15,7 @@ import transform.TreeTransforms.{TreeTransform, TreeTransformer}
 import core.DenotTransformers.DenotTransformer
 import core.Denotations.SingleDenotation
 import dotty.tools.backend.jvm.{GenBCode, LabelDefs}
+import dotty.tools.dotc.transform.autocollections.{AutoCollections, PreAutoCollections}
 import dotty.tools.dotc.transform.linker.{AnalyzeClosures, MinimizeClosures, Rewrites}
 
 class Compiler {

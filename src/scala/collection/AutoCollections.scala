@@ -111,8 +111,8 @@ object AutoCollections {
   class ImmutableSet[T] extends Immutable.Set[T] {
     override def contains(elem: T): Boolean = ???
     override def +(elem: T): Set[T]         = ???
-    override def -(elem: T): Set[T]        = ???
-    override def iterator: Iterator[T]     = ???
+    override def -(elem: T): Set[T]         = ???
+    override def iterator: Iterator[T]      = ???
   }
 
   class MutableSet[T] extends Mutable.Set[T] {

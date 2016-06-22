@@ -3,18 +3,20 @@ package core
 
 import Periods._
 import Contexts._
-import dotty.tools.backend.jvm.{LabelDefs, GenBCode}
+import dotty.tools.backend.jvm.{GenBCode, LabelDefs}
 import util.DotClass
 import DenotTransformers._
 import Denotations._
 import Decorators._
 import config.Printers._
-import scala.collection.mutable.{ListBuffer, ArrayBuffer}
-import dotty.tools.dotc.transform.TreeTransforms.{TreeTransformer, MiniPhase, TreeTransform}
+
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import dotty.tools.dotc.transform.TreeTransforms.{MiniPhase, TreeTransform, TreeTransformer}
 import dotty.tools.dotc.transform._
 import Periods._
 import typer.{FrontEnd, RefChecks}
 import ast.tpd
+import dotty.tools.dotc.transform.autocollections.PreAutoCollections
 
 trait Phases {
   self: Context =>
