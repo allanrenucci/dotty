@@ -1,19 +1,11 @@
-# After updating this file, you need to re-sign it:
-#
-# - Install [drone-cli](http://readme.drone.io/usage/getting-started-cli/)
-# - Copy your token from http://dotty-ci.epfl.ch/account (Click SHOW TOKEN)
-# - DRONE_TOKEN=your-token DRONE_SERVER=http://dotty-ci.epfl.ch drone sign lampepfl/dotty
-#
-# Please note that the signing can only be done by collaborators.
-
 pipeline:
   test:
     image: lampepfl/dotty:2017-08-30
     commands:
-      - ./project/scripts/sbt "${CI_TEST}"
+      - echo "${CI_TEST}"
+      #- ./project/scripts/sbt "${CI_TEST}"
     when:
-      branch:
-        exclude: gh-pages
+      branch: master
 
   publish_nightly:
     image: lampepfl/dotty:2017-08-30
@@ -23,6 +15,7 @@ pipeline:
       - NIGHTLYBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
     volumes:
       - /home/drone/keys:/keys
+    secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
     when:
       event: deployment
       environment: nightly
@@ -35,6 +28,7 @@ pipeline:
       - RELEASEBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
     volumes:
       - /home/drone/keys:/keys
+    secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
     when:
       event: deployment
       environment: release
@@ -45,6 +39,7 @@ pipeline:
       - RELEASEBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";sbt-dotty/publishSigned ;sonatypeRelease"
     volumes:
       - /home/drone/keys:/keys
+    secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
     when:
       event: deployment
       environment: sbt_release
@@ -53,15 +48,19 @@ pipeline:
     image: lampepfl/dotty:2017-08-30
     commands:
       - ./project/scripts/genDocs "${CI_PUBLISH}" $BOT_PASS
+    secrets: [ bot_pass ]
     when:
       branch: master
+      event: push
 
   slack:
     image: plugins/slack
-    channel: dotty
+    channel: drone-test
+    secrets: [ slack_webhook ]
     when:
       branch: master
-      status: changed
+      status: [ success, failure ]
+      event: [ push, deployment ]
 
 matrix:
   include:
