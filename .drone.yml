@@ -4,8 +4,6 @@ pipeline:
     commands:
       - echo "${CI_TEST}"
       #- ./project/scripts/sbt "${CI_TEST}"
-    when:
-      branch: master
 
   publish_nightly:
     image: lampepfl/dotty:2017-08-30
@@ -53,7 +51,6 @@ pipeline:
       - ./project/scripts/genDocs "${CI_PUBLISH}" $BOT_PASS
     secrets: [ bot_pass ]
     when:
-      branch: master
       event: push
 
   slack:
@@ -61,9 +58,10 @@ pipeline:
     channel: drone-test
     secrets: [ slack_webhook ]
     when:
-      branch: master
       status: [ success, failure ]
       event: [ push, deployment ]
+
+branches: master
 
 matrix:
   include:
