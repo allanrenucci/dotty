@@ -11,10 +11,11 @@ pipeline:
     image: lampepfl/dotty:2017-08-30
     commands:
       - ./project/scripts/sbt ";clean ;publishLocal" "${CI_PUBLISH}"
-      - ./project/scripts/sbt "sbt-dotty/scripted source-dependencies/*" "${CI_PUBLISH}"
-      - NIGHTLYBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
+      #- ./project/scripts/sbt "sbt-dotty/scripted source-dependencies/*" "${CI_PUBLISH}"
+      #- NIGHTLYBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
+      - NIGHTLYBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";dotty-bootstrapped/publishSigned"
     volumes:
-      - /home/drone/keys:/keys
+      - /localhome/renucci/gpg:/keys
     secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
     when:
       event: deployment
@@ -24,10 +25,11 @@ pipeline:
     image: lampepfl/dotty:2017-08-30
     commands:
       - ./project/scripts/sbt ";clean ;publishLocal" "${CI_PUBLISH}"
-      - ./project/scripts/sbt "sbt-dotty/scripted source-dependencies/*" "${CI_PUBLISH}"
-      - RELEASEBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
+      #- ./project/scripts/sbt "sbt-dotty/scripted source-dependencies/*" "${CI_PUBLISH}"
+      #- RELEASEBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
+      - RELEASEBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";dotty-bootstrapped/publishSigned"
     volumes:
-      - /home/drone/keys:/keys
+      - /localhome/renucci/gpg:/keys
     secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
     when:
       event: deployment
@@ -36,9 +38,10 @@ pipeline:
   publish_sbt_release:
     image: lampepfl/dotty:2017-08-30
     commands:
-      - RELEASEBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";sbt-dotty/publishSigned ;sonatypeRelease"
+      #- RELEASEBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";sbt-dotty/publishSigned ;sonatypeRelease"
+      - RELEASEBUILD="yes" ./project/scripts/sbtPublish ${CI_PUBLISH} $SONATYPE_USER $SONATYPE_PW $PGP_PW ";sbt-dotty/publishSigned"
     volumes:
-      - /home/drone/keys:/keys
+      - /localhome/renucci/gpg:/keys
     secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
     when:
       event: deployment
