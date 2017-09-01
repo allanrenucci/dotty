@@ -48,7 +48,8 @@ pipeline:
   documentation:
     image: lampepfl/dotty:2017-08-30
     commands:
-      - ./project/scripts/genDocs "${CI_PUBLISH}" $BOT_PASS
+      #- ./project/scripts/genDocs "${CI_PUBLISH}" $BOT_PASS
+      - ./project/scripts/genDocs "false" $BOT_PASS
     secrets: [ bot_pass ]
     when:
       event: push
