@@ -1,77 +1,9 @@
 pipeline:
   test:
     image: lampepfl/dotty:2017-08-30
-    commands:
-      - ./project/scripts/sbt "${CI_TEST}"
-
-  publish_nightly:
-    image: lampepfl/dotty:2017-08-30
-    environment:
-      - NIGHTLYBUILD=yes
-    commands:
-      - ./project/scripts/sbt ";clean ;publishLocal" "${CI_PUBLISH}"
-      - ./project/scripts/sbt "sbt-dotty/scripted source-dependencies/*" "${CI_PUBLISH}"
-      - ./project/scripts/sbtPublish "${CI_PUBLISH}" "$SONATYPE_USER" "$SONATYPE_PW" "$PGP_PW" ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
-    volumes:
-      - /home/drone/keys:/keys
-    secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
-    when:
-      event: deployment
-      environment: nightly
-
-  publish_release:
-    image: lampepfl/dotty:2017-08-30
-    environment:
-      - RELEASEBUILD=yes
-    commands:
-      - ./project/scripts/sbt ";clean ;publishLocal" "${CI_PUBLISH}"
-      - ./project/scripts/sbt "sbt-dotty/scripted source-dependencies/*" "${CI_PUBLISH}"
-      - ./project/scripts/sbtPublish "${CI_PUBLISH}" "$SONATYPE_USER" "$SONATYPE_PW" "$PGP_PW" ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
-    volumes:
-      - /home/drone/keys:/keys
-    secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
-    when:
-      event: deployment
-      environment: release
-
-  publish_sbt_release:
-    image: lampepfl/dotty:2017-08-30
-    environment:
-      - RELEASEBUILD=yes
-    commands:
-      - ./project/scripts/sbtPublish "${CI_PUBLISH}" "$SONATYPE_USER" "$SONATYPE_PW" "$PGP_PW" ";sbt-dotty/publishSigned ;sonatypeRelease"
-    volumes:
-      - /home/drone/keys:/keys
-    secrets: [ sonatype_user, sonatype_pw, pgp_pw ]
-    when:
-      event: deployment
-      environment: sbt_release
-
-  documentation:
-    image: lampepfl/dotty:2017-08-30
-    commands:
-      - ./project/scripts/genDocs "${CI_PUBLISH}" "$BOT_PASS"
     secrets: [ bot_pass ]
-    when:
-      event: push
+    commands:
+      - if test -n "$BOT_PASS"; then echo "full"; else echo "empty"; fi
 
-  slack:
-    image: plugins/slack
-    channel: dotty
-    secrets: [ slack_webhook ]
-    when:
-      status: [ success, failure ]
-      event: [ push, deployment ]
 
 branches: master
-
-matrix:
-  include:
-    - CI_TEST: legacyTests
-      CI_PUBLISH: true
-    - CI_TEST: ;test;sbt-dotty/scripted compilerReporter/*;sbt-dotty/scripted discovery/*;sbt-dotty/scripted sbt-dotty/*
-      CI_PUBLISH: false
-    - CI_TEST: dotty-bootstrapped/test
-      CI_PUBLISH: false
-    - CI_TEST: ;set bootstrapOptimised in ThisBuild := true ;dotty-bootstrapped/test
-      CI_PUBLISH: false
