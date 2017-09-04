@@ -3,7 +3,7 @@ pipeline:
     image: lampepfl/dotty:2017-08-30
     secrets: [ bot_pass ]
     commands:
-      - if test -n "$bot_pass"; then echo "full"; else echo "empty"; fi
+      - if test -n "$BOT_PASS"; then echo "full"; else echo "empty"; fi
 
 
 branches: master
