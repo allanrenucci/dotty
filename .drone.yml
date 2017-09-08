@@ -35,7 +35,7 @@ pipeline:
       - cp -R . /tmp/4/ && cd /tmp/4/
       - ./project/scripts/sbt sbt-dotty/scripted
     when:
-      event: push
+      event: [ push, tag, deployment ]
 
   documentation:
     image: lampepfl/dotty:2017-09-05
@@ -86,7 +86,7 @@ pipeline:
 
   slack:
     image: plugins/slack
-    channel: dotty
+    channel: drone-test
     secrets: [ slack_webhook ]
     when:
       status: [ success, failure ]
