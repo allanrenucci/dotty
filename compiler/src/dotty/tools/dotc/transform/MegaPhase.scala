@@ -664,7 +664,9 @@ class MegaPhase(val miniPhases: Array[MiniPhase]) extends Phase {
     val phase = nxBlockTransPhase(start)
     if (phase == null) tree
     else phase.transformBlock(tree)(ctx) match {
-      case tree1: Block => goBlock(tree1, phase.idxInGroup + 1)
+      case tree1: Block =>
+        if (tree1.stats.isEmpty) transformNode(tree1.expr, phase.idxInGroup + 1)
+        else goBlock(tree1, phase.idxInGroup + 1)
       case tree1 => transformNode(tree1, phase.idxInGroup + 1)
     }
   }
