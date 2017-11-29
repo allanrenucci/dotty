@@ -811,8 +811,8 @@ object PatternMatcher {
         case _ =>
           plan :: Nil
       }
-
-      recur(plan)
+      if (isSwitchableType(scrutinee.tpe)) recur(plan)
+      else Nil
     }
 
     /** Emit cases of a switch */
