@@ -270,35 +270,37 @@ class CompilationTests extends ParallelTesting {
       sources(Files.list(backendDir), excludedFiles = backendExcluded)
     val backendJvmSources =
       sources(Files.list(backendJvmDir), excludedFiles = backendJvmExcluded)
+    val allSources = compilerSources ++ backendSources ++ backendJvmSources
 
-    val dotty1 = compileList("dotty", compilerSources ++ backendSources ++ backendJvmSources, opt)(dotty1Group)
-    val dotty2 = compileList("dotty", compilerSources ++ backendSources ++ backendJvmSources, opt)(dotty2Group)
+    val dotty1 = compileList("dotty", allSources, opt)(dotty1Group)
+    val dotty2 = compileList("dotty", allSources, opt)(dotty2Group)
 
     val tests = {
-      lib.keepOutput :: dotty1.keepOutput :: {
-        dotty2 +
-        compileShallowFilesInDir("../compiler/src/dotty/tools", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/ast", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/config", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/parsing", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/printing", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/reporting", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/rewrite", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/transform", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/typer", opt) +
-        compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/util", opt) +
-        compileList("shallow-backend", backendSources, opt) +
-        compileList("shallow-backend-jvm", backendJvmSources, opt)
-      }.keepOutput :: Nil
-    }.map(_.checkCompile())
+      lib +
+      dotty1 +
+      dotty2 +
+      compileShallowFilesInDir("../compiler/src/dotty/tools", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/ast", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/config", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/parsing", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/printing", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/reporting", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/rewrite", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/transform", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/typer", opt) +
+      compileShallowFilesInDir("../compiler/src/dotty/tools/dotc/util", opt) +
+      compileList("shallow-backend", backendSources, opt) +
+      compileList("shallow-backend-jvm", backendJvmSources, opt)
+    }.keepOutput.checkCompile()
 
-    assert(new java.io.File(s"../out/$dotty1Group/dotty/").exists)
-    assert(new java.io.File(s"../out/$dotty2Group/dotty/").exists)
-    assert(new java.io.File(s"../out/$libGroup/src/").exists)
+    def exists(file: String) = Files.exists(Paths.get(file))
+    assert(exist(s"../out/$dotty1Group/dotty/"))
+    assert(exist(s"../out/$dotty2Group/dotty/"))
+    assert(exist(s"../out/$libGroup/src/"))
     compileList("idempotency", List("../tests/idempotency/BootstrapChecker.scala", "../tests/idempotency/IdempotencyCheck.scala"), defaultOptions).checkRuns()
 
-    tests.foreach(_.delete())
+    tests.delete()
   }
 
   @Category(Array(classOf[SlowTests]))
