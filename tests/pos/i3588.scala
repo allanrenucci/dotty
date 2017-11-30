@@ -27,3 +27,25 @@ class Baz {
     case _ =>
   }
 }
+
+class Foo2 {
+  val a: AnyVal = 3
+  a match {
+    case 1 =>
+    case 2 =>
+    case 3 =>
+    case _ =>
+  }
+}
+
+
+case class A(i: Int) extends AnyVal
+class Foo3 {
+  val a: A = new A(3)
+  a match {
+    case A(1) =>
+    case A(2) =>
+    case A(3) =>
+    case _ =>
+  }
+}

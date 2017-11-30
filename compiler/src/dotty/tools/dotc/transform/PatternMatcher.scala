@@ -805,8 +805,9 @@ object PatternMatcher {
         case _ =>
           plan :: Nil
       }
-      if (scrutinee.tpe.widen.classSymbol ne defn.AnyClass) recur(plan)
-      else Nil
+      val cls = scrutinee.tpe.widen.classSymbol
+      if (cls == defn.AnyClass || cls == defn.AnyValClass) Nil
+      else recur(plan)
     }
 
     /** Emit cases of a switch */
