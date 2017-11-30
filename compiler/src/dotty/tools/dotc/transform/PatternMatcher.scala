@@ -791,6 +791,12 @@ object PatternMatcher {
      *  plan and following onSuccess plans.
      */
     private def collectSwitchCases(plan: TestPlan): List[Plan] = {
+      def isSwitchableType(tpe: Type): Boolean =
+        (tpe isRef defn.IntClass) ||
+        (tpe isRef defn.ByteClass) ||
+        (tpe isRef defn.ShortClass) ||
+        (tpe isRef defn.CharClass)
+
       val scrutinee = plan.scrutinee
 
       def isIntConst(tree: Tree) = tree match {
@@ -805,9 +811,9 @@ object PatternMatcher {
         case _ =>
           plan :: Nil
       }
-      val cls = scrutinee.tpe.widen.classSymbol
-      if (cls == defn.AnyClass || cls == defn.AnyValClass) Nil
-      else recur(plan)
+
+      if (isSwitchableType(scrutinee.tpe.widen)) recur(plan)
+      else Nil
     }
 
     /** Emit cases of a switch */
