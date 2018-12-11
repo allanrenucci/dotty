@@ -1,116 +1,141 @@
-clone:
-  git:
-    image: plugins/git
-    # We clone submodules ourselves
-    recursive: false
+kind: pipeline
+name: default
 
-pipeline:
-  # We add a custom clone step to workaround a bug with GitHub (see #3415)
-  # and speed up cloning submodules
-  clone:
-    image: plugins/git
-    commands:
-      # if build is PR rebase on top of target branch
-      - if [ "$DRONE_BUILD_EVENT" = "pull_request" ]; then
-          git config user.email "dotty.bot@epfl.ch";
-          git config user.name "Dotty CI";
-          git pull "$DRONE_REMOTE_URL" "$DRONE_BRANCH";
-        fi
-      # clone submodules in parallelRiRem
-      - git submodule update --init --recursive --jobs 3
+steps:
+- name: submodules
+  image: docker:git
+  commands:
+  - echo "Cloning submodules"
+  # - git submodule update --init --jobs 3
 
-  # TESTS:
-  # We run tests in parallel. Tests run in a copy of the working directory to avoid conflict
-  test:
-    group: test
-    image: lampepfl/dotty:2018-10-01
-    commands:
-      - cp -R . /tmp/1/ && cd /tmp/1/
-      - ./project/scripts/sbt ";compile ;test"
-      - ./project/scripts/cmdTests
+- name: test
+  image: lampepfl/dotty:2018-10-01
+  group: tests
+  commands:
+  - sleep 4
+  # - cp -R . /tmp/1/ && cd /tmp/1/
+  # - ./project/scripts/sbt ";compile ;test"
+  # - ./project/scripts/cmdTests
 
-  test_bootstrapped:
-    group: test
-    image: lampepfl/dotty:2018-10-01
-    commands:
-      - cp -R . /tmp/2/ && cd /tmp/2/
-      - ./project/scripts/sbt ";dotty-bootstrapped/compile ;dotty-bootstrapped/test"
-      - ./project/scripts/bootstrapCmdTests
+- name: test bootstrapped
+  image: lampepfl/dotty:2018-10-01
+  group: tests
+  commands:
+  - sleep 4
+  # - cp -R . /tmp/2/ && cd /tmp/2/
+  # - ./project/scripts/sbt ";dotty-bootstrapped/compile ;dotty-bootstrapped/test"
+  # - ./project/scripts/bootstrapCmdTests
 
-  test_sbt:
-    group: test
-    image: lampepfl/dotty:2018-10-01
-    commands:
-      - cp -R . /tmp/4/ && cd /tmp/4/
-      - ./project/scripts/sbt sbt-dotty/scripted
-    when:
-      # sbt scripted tests are slow and only run on nightly or deployment
-      event: [ tag, deployment ]
+- name: test sbt
+  image: lampepfl/dotty:2018-10-01
+  group: tests
+  commands:
+  - sleep 4
+  # - cp -R . /tmp/3/ && cd /tmp/3/
+  # - ./project/scripts/sbt sbt-dotty/scripted
+  when:
+    # sbt scripted tests are slow and only run on nightly or release (a.k.a. promote)
+    event:
+    - tag
+    - promote
 
-  # DOCUMENTATION:
-  documentation:
-    image: lampepfl/dotty:2018-10-01
-    commands:
-      - ./project/scripts/genDocs
-    secrets: [ bot_token ]
-    when:
-      event: push
-      # We only generate the documentation for the master branch
-      branch: master
+# DOCUMENTATION:
+- name: documentation
+  image: lampepfl/dotty:2018-10-01
+  commands:
+  - ./project/scripts/genDocs
+  environment:
+    BOT_TOKEN:
+      from_secret: bot_token
+  when:
+    event:
+    - push
+    # We only generate the documentation for the master branch
+    branch:
+    - master
 
-  # PUBLISHING:
-  # Publishing expect NIGHTLYBUILD or RELEASEBUILD to be set. See dottyVersion in Build.scala
-  publish_nightly:
-    image: lampepfl/dotty:2018-10-01
-    environment:
-      - NIGHTLYBUILD=yes
-    commands:
-      - ./project/scripts/sbtPublish ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
-    secrets: [ sonatype_user, sonatype_pw, pgp_pw, pgp_secret ]
-    when:
-      event: deployment
-      environment: nightly
+# PUBLISHING:
+# Publishing expect NIGHTLYBUILD or RELEASEBUILD to be set. See dottyVersion in Build.scala
+- name: publish nightly
+  image: lampepfl/dotty:2018-10-01
+  environment:
+    NIGHTLYBUILD: yes
+    SONATYPE_USER:
+      from_secret: sonatype_user
+    SONATYPE_PW:
+      from_secret: sonatype_pw
+    PGP_PW:
+      from_secret: pgp_pw
+    PGP_SECRET:
+      from_secret: pgp_secret
+  commands:
+  - ./project/scripts/sbtPublish ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
+  when:
+    target:
+    - nightly
 
-  publish_release:
-    image: lampepfl/dotty:2018-10-01
-    environment:
-      - RELEASEBUILD=yes
-    commands:
-      # Produces dotty-version.{tar.gz, zip}
-      - ./project/scripts/sbt dist-bootstrapped/packArchive
-      - ./project/scripts/sbtPublish ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
-    secrets: [ sonatype_user, sonatype_pw, pgp_pw, pgp_secret ]
-    when:
-      event: tag
+- name: publish release
+  image: lampepfl/dotty:2018-10-01
+  environment:
+    RELEASEBUILD: yes
+    SONATYPE_USER:
+      from_secret: sonatype_user
+    SONATYPE_PW:
+      from_secret: sonatype_pw
+    PGP_PW:
+      from_secret: pgp_pw
+    PGP_SECRET:
+      from_secret: pgp_secret
+  commands:
+  # Produces dotty-version.{tar.gz, zip}
+  - ./project/scripts/sbt dist-bootstrapped/packArchive
+  - ./project/scripts/sbtPublish ";dotty-bootstrapped/publishSigned ;sonatypeRelease"
+  when:
+    event:
+    - tag
 
-  # Publish dotty-version.{tar.gz, zip} to GitHub Release
-  github_release:
-    image: plugins/github-release
-    secrets: [ github_token ]
+# Publish dotty-version.{tar.gz, zip} to GitHub Release
+- name: github release
+  image: plugins/github-release
+  settings:
+    files: dist-bootstrapped/target/dotty-*
+    checksum: sha256
     draft: true
-    files:
-      - dist-bootstrapped/target/dotty-*
-    checksum:
-      - sha256
-    when:
-      event: tag
+    api_key:
+      from_secret: github_token
+  when:
+    event:
+    - tag
 
-  publish_sbt_release:
-    image: lampepfl/dotty:2018-10-01
-    environment:
-      - RELEASEBUILD=yes
-    commands:
-      - ./project/scripts/sbtPublish ";sbt-dotty/publishSigned ;sonatypeRelease"
-    secrets: [ sonatype_user, sonatype_pw, pgp_pw, pgp_secret ]
-    when:
-      event: deployment
-      environment: sbt_release
+- name: publish sbt release
+  image: lampepfl/dotty:2018-10-01
+  environment:
+    RELEASEBUILD: yes
+    SONATYPE_USER:
+      from_secret: sonatype_user
+    SONATYPE_PW:
+      from_secret: sonatype_pw
+    PGP_PW:
+      from_secret: pgp_pw
+    PGP_SECRET:
+      from_secret: pgp_secret
+  commands:
+  - ./project/scripts/sbtPublish ";sbt-dotty/publishSigned ;sonatypeRelease"
+  when:
+    target:
+    - sbt_release
 
-  # NOTIFICATIONS:
-  slack:
-    image: plugins/slack
+# NOTIFICATIONS:
+- name: slack
+  image: plugins/slack
+  settings:
+    webhook:
+      from_secret: slack_webhook
     channel: dotty
-    secrets: [ slack_webhook ]
-    when:
-      status: [ failure ]
-      event: [ push, tag, deployment ]
+  when:
+    status:
+    - failure
+    event:
+    - push
+    - tag
+    - deployment
