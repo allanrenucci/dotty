@@ -142,7 +142,7 @@ class ReplDriver(settings: Array[String],
   private def withRedirectedOutput(op: => State): State =
     Console.withOut(out) { Console.withErr(out) { op } }
 
-  private def newRun(state: State) = {
+  private def newRun(input: String, state: State) = {
     val run = compiler.newRun(rootCtx.fresh.setReporter(newStoreReporter), state)
     state.copy(context = run.runContext)
   }
@@ -212,24 +212,38 @@ class ReplDriver(settings: Array[String],
       val state0 = newRun(istate)
       state0.copy(context = state0.context.withSource(parsed.source))
     }
-    compiler
-      .compile(parsed)
-      .fold(
-        displayErrors,
-        {
-          case (unit: CompilationUnit, newState: State) =>
-            val newestWrapper = extractNewestWrapper(unit.untpdTree)
-            val newImports = extractTopLevelImports(newState.context)
-            var allImports = newState.imports
-            if (newImports.nonEmpty)
-              allImports += (newState.objectIndex -> newImports)
-            val newStateWithImports = newState.copy(imports = allImports)
 
-            val warnings = newState.context.reporter.removeBufferedMessages(newState.context)
-            displayErrors(warnings)(newState) // display warnings
-            displayDefinitions(unit.tpdTree, newestWrapper)(newStateWithImports)
-        }
-      )
+    // If trees is of the form `{ def1; def2; def3 }` then `List(def1, def2, def3)`
+    val flattened = trees match {
+      case List(Block(stats, expr)) =>
+        if (expr eq EmptyTree) stats // happens when expr is not an expression
+        else stats :+ expr
+      case _ =>
+        trees
+    }
+
+    if (flattened.isEmpty)
+      istate // Nothing to do here
+    else {
+      compiler
+        .compile(flattened)
+        .fold(
+          displayErrors,
+          {
+            case (unit: CompilationUnit, newState: State) =>
+              val newestWrapper = extractNewestWrapper(unit.untpdTree)
+              val newImports = extractTopLevelImports(newState.context)
+              var allImports = newState.imports
+              if (newImports.nonEmpty)
+                allImports += (newState.objectIndex -> newImports)
+              val newStateWithImports = newState.copy(imports = allImports)
+
+              val warnings = newState.context.reporter.removeBufferedMessages(newState.context)
+              displayErrors(warnings)(newState) // display warnings
+              displayDefinitions(unit.tpdTree, newestWrapper)(newStateWithImports)
+          }
+        )
+    }
   }
 
   /** Display definitions from `tree` */

@@ -37,7 +37,7 @@ class ReplCompiler extends Compiler {
     List(new PostTyper)
   )
 
-  def newRun(initCtx: Context, state: State): Run = new Run(this, initCtx) {
+  def newRun(input: String, initCtx: Context, state: State): Run = new Run(this, initCtx) {
 
     /** Import previous runs and user defined imports */
     override protected[this] def rootContext(implicit ctx: Context): Context = {
@@ -46,7 +46,7 @@ class ReplCompiler extends Compiler {
 
       def importPreviousRun(id: Int)(implicit ctx: Context) = {
         // we first import the wrapper object id
-        val path = nme.EMPTY_PACKAGE ++ "." ++ objectNames(id)
+        val path = nme.EMPTY_PACKAGE ++ "." ++ objectName(id)
         val importInfo = ImportInfo.rootImport(() =>
           ctx.requiredModuleRef(path))
         val ctx0 = ctx.fresh.setNewScope.setImportInfo(importInfo)
@@ -58,12 +58,16 @@ class ReplCompiler extends Compiler {
           importContext(imp)(ctx))
       }
 
-      (1 to state.objectIndex).foldLeft(super.rootContext)((ctx, id) =>
+      val source = SourceFile.virtual(objectName(state.objectIndex + 1).toString, input)
+      val rootCtx = super.rootContext.withSource(source)
+      (1 to state.objectIndex).foldLeft(rootCtx)((ctx, id) =>
         importPreviousRun(id)(ctx))
     }
   }
 
   private[this] val objectNames = mutable.Map.empty[Int, TermName]
+  private def objectName(id: Int) =
+    objectNames.getOrElseUpdate(id, (str.REPL_SESSION_LINE + id).toTermName)
 
   private case class Definitions(stats: List[untpd.Tree], state: State)
 
@@ -72,19 +76,10 @@ class ReplCompiler extends Compiler {
 
     implicit val ctx: Context = state.context
 
-    // If trees is of the form `{ def1; def2; def3 }` then `List(def1, def2, def3)`
-    val flattened = trees match {
-      case List(Block(stats, expr)) =>
-        if (expr eq EmptyTree) stats // happens when expr is not an expression
-        else stats :+ expr
-      case _ =>
-        trees
-    }
-
     var valIdx = state.valIndex
     val defs = new mutable.ListBuffer[Tree]
 
-    flattened.foreach {
+    trees.foreach {
       case expr @ Assign(id: Ident, _) =>
         // special case simple reassignment (e.g. x = 3)
         // in order to print the new value in the REPL
@@ -103,7 +98,7 @@ class ReplCompiler extends Compiler {
     Definitions(
       defs.toList,
       state.copy(
-        objectIndex = state.objectIndex + (if (defs.isEmpty) 0 else 1),
+        objectIndex = state.objectIndex + 1,
         valIndex = valIdx
       )
     )
@@ -123,7 +118,7 @@ class ReplCompiler extends Compiler {
    *  }
    *  ```
    */
-  private def wrapped(defs: Definitions, objectTermName: TermName): untpd.PackageDef = {
+  private def wrapped(defs: Definitions): untpd.PackageDef = {
     import untpd._
 
     assert(defs.stats.nonEmpty)
@@ -131,21 +126,15 @@ class ReplCompiler extends Compiler {
     implicit val ctx: Context = defs.state.context
 
     val tmpl = Template(emptyConstructor, Nil, Nil, EmptyValDef, defs.stats)
-    val module = ModuleDef(objectTermName, tmpl)
+    val module = ModuleDef(objectName(defs.state.objectIndex), tmpl)
       .withSpan(Span(0, defs.stats.last.span.end))
 
     PackageDef(Ident(nme.EMPTY_PACKAGE), List(module))
   }
 
   private def createUnit(defs: Definitions)(implicit ctx: Context): CompilationUnit = {
-    val objectName = ctx.source.file.toString
-    assert(objectName.startsWith(str.REPL_SESSION_LINE))
-    assert(objectName.endsWith(defs.state.objectIndex.toString))
-    val objectTermName = ctx.source.file.toString.toTermName
-    objectNames.update(defs.state.objectIndex, objectTermName)
-
     val unit = CompilationUnit(ctx.source)
-    unit.untpdTree = wrapped(defs, objectTermName)
+    unit.untpdTree = wrapped(defs)
     unit
   }
 
